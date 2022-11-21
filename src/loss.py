@@ -42,7 +42,7 @@ class CustomLoss(nn.Module):
 
         # define output probability distributions (kl_div expects the input to be in log space)
         log_prob1 = F.log_softmax(output1, dim=1)
-        log_prob2 = F.log_softmax(output1, dim=1)
+        log_prob2 = F.log_softmax(output2, dim=1)
 
         # KL divergences
         kl = F.kl_div(log_prob1, log_prob2, log_target=True)
