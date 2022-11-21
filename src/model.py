@@ -8,7 +8,7 @@ from typing import Tuple
 def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
     """
     Returns the encoder network for the given backbone as well as the input dimension for the
-    pretext network.
+    pretext-specific network.
     """
     if backbone == "alexnet":
         return AlexNetEncoder(), 8192
@@ -32,13 +32,13 @@ def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
         raise ValueError(f"Invalid backbone: {backbone}")
 
 
-"""
-Follows the architecture outlined in the patch localization paper
-Code adopted from: 
-    - https://github.com/abhisheksambyal/Self-supervised-learning-by-context-prediction
-    - https://pytorch.org/vision/main/_modules/torchvision/models/alexnet.html
-"""
 class AlexNetEncoder(nn.Module):
+    """
+    Follows the architecture outlined in the patch localization paper
+    Code adopted from: 
+        - https://github.com/abhisheksambyal/Self-supervised-learning-by-context-prediction
+        - https://pytorch.org/vision/main/_modules/torchvision/models/alexnet.html
+    """
     def __init__(self):
         super(AlexNetEncoder, self).__init__()
         self.cnn = nn.Sequential(
@@ -68,14 +68,14 @@ class AlexNetEncoder(nn.Module):
             nn.BatchNorm1d(4096),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.cnn(x)
         x = self.fc6(x)
         return x
 
 
 class OriginalPretextNetwork(nn.Module):
-    def __init__(self, backbone="alexnet"):
+    def __init__(self, backbone: str="alexnet"):
         super(OriginalPretextNetwork, self).__init__()
         self.encoder, input_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
@@ -86,10 +86,14 @@ class OriginalPretextNetwork(nn.Module):
             nn.Linear(4096, 8)
         )
 
-    def get_embedding(self, x):
+    def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
         return self.encoder(x)
 
-    def forward(self, center, neighbor):
+    def forward(self, 
+        center: torch.Tensor, 
+        neighbor: torch.Tensor,
+        ) -> torch.Tensor:
+
         # embeddings
         center = self.get_embedding(center)
         neighbor = self.get_embedding(neighbor)
@@ -102,7 +106,7 @@ class OriginalPretextNetwork(nn.Module):
 
 
 class OurPretextNetwork(nn.Module):
-    def __init__(self, backbone="alexnet"):
+    def __init__(self, backbone: str="alexnet"):
         super(OurPretextNetwork, self).__init__()
         self.encoder, input_dim = get_encoder(backbone)            
         self.fc = nn.Sequential(
@@ -113,10 +117,15 @@ class OurPretextNetwork(nn.Module):
             nn.Linear(4096, 8)
         )
 
-    def get_embedding(self, x):
+    def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
         return self.encoder(x)
 
-    def forward(self, center, neighbor1, neighbor2):
+    def forward(self, 
+        center: torch.Tensor, 
+        neighbor1: torch.Tensor, 
+        neighbor2: torch.Tensor,
+        ) -> Tuple[torch.Tensor, torch.Tensor]:
+
         # embeddings
         center = self.get_embedding(center)
         neighbor1 = self.get_embedding(neighbor1)
