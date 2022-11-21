@@ -11,7 +11,7 @@ def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
     pretext network.
     """
     if backbone == "alexnet":
-        return AlexNetEncoder, 4096
+        return AlexNetEncoder(), 8192
     elif "resnet" in backbone:
         if backbone == "resnet18":
             resnet = torchvision.models.resnet18()
@@ -77,9 +77,9 @@ class AlexNetEncoder(nn.Module):
 class OriginalPretextNetwork(nn.Module):
     def __init__(self, backbone="alexnet"):
         super(OriginalPretextNetwork, self).__init__()
-        self.encoder = get_encoder(backbone)
+        self.encoder, input_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
-            nn.Linear(2 * 4096, 4096),
+            nn.Linear(input_dim, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
@@ -104,9 +104,9 @@ class OriginalPretextNetwork(nn.Module):
 class OurPretextNetwork(nn.Module):
     def __init__(self, backbone="alexnet"):
         super(OurPretextNetwork, self).__init__()
-        self.encoder = get_encoder(backbone)            
+        self.encoder, input_dim = get_encoder(backbone)            
         self.fc = nn.Sequential(
-            nn.Linear(2 * 4096, 4096),
+            nn.Linear(input_dim, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
