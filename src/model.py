@@ -1,5 +1,36 @@
 import torch
 import torch.nn as nn
+import torchvision
+
+from typing import Tuple
+
+
+def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
+    """
+    Returns the encoder network for the given backbone as well as the input dimension for the
+    pretext network.
+    """
+    if backbone == "alexnet":
+        return AlexNetEncoder, 4096
+    elif "resnet" in backbone:
+        if backbone == "resnet18":
+            resnet = torchvision.models.resnet18()
+            input_dim = 4096
+        elif backbone == "resnet34":
+            resnet = torchvision.models.resnet34()
+            input_dim = 4096
+        else:
+            raise ValueError(f"Invalid backbone: {backbone}")
+
+        # override the final layers, we are not interested in the
+        # fully-connected classifier of the resnet
+        resnet.avgpool = nn.Identity()
+        resnet.fc = nn.Identity()
+
+        return resnet, input_dim
+    else:
+        raise ValueError(f"Invalid backbone: {backbone}")
+
 
 """
 Follows the architecture outlined in the patch localization paper
@@ -7,9 +38,9 @@ Code adopted from:
     - https://github.com/abhisheksambyal/Self-supervised-learning-by-context-prediction
     - https://pytorch.org/vision/main/_modules/torchvision/models/alexnet.html
 """
-class EncoderNetwork(nn.Module):
+class AlexNetEncoder(nn.Module):
     def __init__(self):
-        super(EncoderNetwork, self).__init__()
+        super(AlexNetEncoder, self).__init__()
         self.cnn = nn.Sequential(
             nn.Conv2d(3, 96, kernel_size=11, stride=4),
             nn.ReLU(inplace=True),
@@ -31,7 +62,7 @@ class EncoderNetwork(nn.Module):
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
         )
         self.fc6 = nn.Sequential(
-            nn.Flatte(),
+            nn.Flatten(),
             nn.Linear(256, 4096),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(4096),
@@ -44,9 +75,9 @@ class EncoderNetwork(nn.Module):
 
 
 class OriginalPretextNetwork(nn.Module):
-    def __init__(self, aux_logits=False):
+    def __init__(self, backbone="alexnet"):
         super(OriginalPretextNetwork, self).__init__()
-        self.encoder = EncoderNetwork()
+        self.encoder = get_encoder(backbone)
         self.fc = nn.Sequential(
             nn.Linear(2 * 4096, 4096),
             nn.ReLU(inplace=True), 
@@ -71,9 +102,9 @@ class OriginalPretextNetwork(nn.Module):
 
 
 class OurPretextNetwork(nn.Module):
-    def __init__(self, aux_logits=False):
-        super(OriginalPretextNetwork, self).__init__()
-        self.encoder = EncoderNetwork()
+    def __init__(self, backbone="alexnet"):
+        super(OurPretextNetwork, self).__init__()
+        self.encoder = get_encoder(backbone)            
         self.fc = nn.Sequential(
             nn.Linear(2 * 4096, 4096),
             nn.ReLU(inplace=True), 
