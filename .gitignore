@@ -131,3 +131,6 @@ dmypy.json
 # MODIFICATIONS
 
 data/
+
+.DS_Store
+.idea/
