@@ -34,7 +34,7 @@ def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
 
 class AlexNetEncoder(nn.Module):
     """
-    Follows the architecture outlined in the patch localization paper
+    Follows the architecture outlined in the patch localization paper.
     Code adopted from: 
         - https://github.com/abhisheksambyal/Self-supervised-learning-by-context-prediction
         - https://pytorch.org/vision/main/_modules/torchvision/models/alexnet.html
