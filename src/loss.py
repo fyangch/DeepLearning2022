@@ -5,13 +5,13 @@ import torch.nn.functional as F
 class CustomLoss(nn.Module):
     def __init__(self, alpha: float=1.0, symmetric: bool=True,):
         """
-        Initialize our custom loss module
+        Initialize our custom loss module.
 
         Args:
             alpha (float):
-                weighting of the KL terms in the loss
+                Weighting of the KL terms in the loss.
             symmetric (bool):
-                whether or not to include 2 KL divergences for symmetry
+                Whether or not to include 2 KL divergences for symmetry.
         """
         super(CustomLoss, self).__init__()
         self.alpha = alpha
@@ -23,19 +23,19 @@ class CustomLoss(nn.Module):
         target: torch.Tensor,
         ) -> torch.Tensor:
         """
-        Forward pass of the loss function
+        Forward pass of the loss function.
 
         Args:
             output1 (torch.Tensor): 
-                output logits for the 1st version of the neighbor patches
+                Output logits for the 1st version of the neighbor patches.
             output2 (torch.Tensor): 
-                output logits for the 2nd version of the neighbor patches
+                Output logits for the 2nd version of the neighbor patches.
             target (torch.Tensor): 
-                ground truth labels (1-hot vector)
+                Ground truth labels (1-hot vectors).
 
         Returns:
             loss (torch.Tensor): 
-                loss between outputs and target
+                Loss between outputs and target.
         """
         # cross entropies
         loss = F.cross_entropy(output1, target) + F.cross_entropy(output2, target)
