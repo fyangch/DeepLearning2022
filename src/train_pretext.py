@@ -59,7 +59,7 @@ def train_model(
         train(model, train_loader, criterion, optimizer, epoch, logger, tb_writer, tb_dict, log_frequency)
 
         # evaluate on validation set
-        acc = validate(model, val_loader, criterion, logger, tb_writer, tb_dict)
+        acc = validate(model, val_loader, criterion, logger, tb_writer, tb_dict, log_frequency)
 
         # save best model so far
         if acc > best_acc:
@@ -97,7 +97,7 @@ def train(
     data_time = AverageMeter()
     losses = AverageMeter()
 
-    # switch to train mode
+    # switch to training mode
     model.train()
 
     for i, (input, target) in enumerate(train_loader):
@@ -106,7 +106,7 @@ def train(
         # original pretext task
         if len(input) == 2: 
             center, neighbor = input[0], input[1]
-            data_time.update(time.time() - curr_time) # measure data loading time
+            data_time.update(time.time() - curr_time) # record data loading time
 
             output = model(center, neighbor) 
             loss = criterion(output, target) 
@@ -114,7 +114,7 @@ def train(
         # our pretext task
         else:
             center, neighbor1, neighbor2 = input[0], input[1], input[2]
-            data_time.update(time.time() - curr_time) # measure data loading time
+            data_time.update(time.time() - curr_time) # record data loading time
 
             output1, output2 = model(center, neighbor1, neighbor2)
             loss = criterion(output1, output2, target)
@@ -124,10 +124,10 @@ def train(
         loss.backward()
         optimizer.step()
 
-        # measure accuracy and record loss
+        # record loss
         losses.update(loss.item(), center.size(0))
 
-        # measure batch processing time
+        # record batch processing time
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
@@ -154,11 +154,75 @@ def validate(
     logger: logging.Logger,
     tb_writer: SummaryWriter,
     tb_dict: dict,
+    log_frequency: int,
     ) -> float:
     """ Validate the model using the validation set and return the accuracy. """
 
-    # switch to evaluate mode
+    # keep track of batch processing time and losses
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+
+    # switch to evaluation mode
     model.eval()
+
+    # for the computation of accuracy at the end
+    all_preds = [] # all predicted class labels
+    all_labels = [] # all true class labels
+
+    with torch.no_grad():
+        for i, (input, target) in enumerate(val_loader):
+            curr_time = time.time()
+            
+            # original pretext task
+            if len(input) == 2: 
+                center, neighbor = input[0], input[1]
+                output = model(center, neighbor) 
+                loss = criterion(output, target) 
+
+                # update list of labels and predictions for computation of accuracy
+                all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
+                all_labels.extend(target.detach().cpu().numpy())
+
+            # our pretext task
+            else:
+                center, neighbor1, neighbor2 = input[0], input[1], input[2]
+                output1, output2 = model(center, neighbor1, neighbor2)
+                loss = criterion(output1, output2, target)
+
+                # update list of labels and predictions for computation of accuracy
+                all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
+                all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
+                all_labels.extend(target.detach().cpu().numpy())
+                all_labels.extend(target.detach().cpu().numpy())
+
+            # record loss
+            losses.update(loss.item(), center.size(0))
+
+            # record batch processing time
+            batch_time.update(time.time() - curr_time)
+
+            # log after every `log_frequency` batches
+            if i % log_frequency == 0:
+                msg = 'Test: [{0}/{1}]\t' \
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(
+                          i, len(val_loader), batch_time=batch_time,
+                          loss=losses)
+                logger.info(msg)
+
+        # Calculate accuracy for entire validation set
+        all_preds = np.concatenate(all_preds, axis=0)
+        all_labels = np.concatenate(all_labels, axis=0)
+        accuracy = (all_preds == all_labels).sum() / all_preds.shape[0]
+
+        logger.info('Accuracy: {:.3f}'.format(accuracy))
+
+        # update TensorBoard
+        tb_writer.add_scalar('valid_loss', losses.avg, tb_dict['valid_global_steps'])
+        tb_writer.add_scalar('valid_acc', accuracy, tb_dict['valid_global_steps'])
+        tb_dict['valid_global_steps'] += 1
+
+    return accuracy
 
 
 class AverageMeter(object):
