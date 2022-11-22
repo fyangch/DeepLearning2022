@@ -7,10 +7,10 @@ from torch.optim import Optimizer
 
 from tensorboardX import SummaryWriter
 
-from typing import Tuple, Union
+from typing import Tuple
 
 
-def create_logger(experiment_id: str) -> Tuple[logging.Logger, Union[SummaryWriter, None]]:
+def create_logger(experiment_id: str) -> Tuple[logging.Logger, SummaryWriter]:
     # set up directory for the current experiment
     experiment_dir = os.path.join("out", experiment_id)
     if not os.path.exists(experiment_dir):
@@ -28,15 +28,12 @@ def create_logger(experiment_id: str) -> Tuple[logging.Logger, Union[SummaryWrit
     logging.getLogger('').addHandler(console)
 
     # set up TensorBoard writer
-    try:
-        tb_writer = SummaryWriter(os.path.join(experiment_dir, "tb"))
-    except:
-        tb_writer = None
+    tb_writer = SummaryWriter(os.path.join(experiment_dir, "tb"))
 
     return logger, tb_writer
 
 
-# See: https://pytorch.org/tutorials/recipes/recipes/saving_and_loading_a_general_checkpoint.html 
+# More details: https://pytorch.org/tutorials/recipes/recipes/saving_and_loading_a_general_checkpoint.html 
 def save_checkpoint(
     experiment_id: str, 
     next_epoch: int,
