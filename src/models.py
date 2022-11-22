@@ -7,27 +7,26 @@ from typing import Tuple
 
 def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
     """
-    Returns the encoder network for the given backbone as well as the input dimension for the
+    Returns the encoder network for the given backbone as well as the embedding dimension for the
     pretext-specific network.
     """
     if backbone == "alexnet":
-        return AlexNetEncoder(), 8192
+        return AlexNetEncoder(), 4096
     elif "resnet" in backbone:
         if backbone == "resnet18":
             resnet = torchvision.models.resnet18()
-            input_dim = 4096
         elif backbone == "resnet34":
             resnet = torchvision.models.resnet34()
-            input_dim = 4096
+        elif backbone == "resnet50":
+            resnet = torchvision.models.resnet50()
+        elif backbone == "resnet101":
+            resnet = torchvision.models.resnet101()
+        elif backbone == "resnet152":
+            resnet = torchvision.models.resnet152()
         else:
             raise ValueError(f"Invalid backbone: {backbone}")
 
-        # override the final layers, we are not interested in the
-        # fully-connected classifier of the resnet
-        resnet.avgpool = nn.Identity()
-        resnet.fc = nn.Identity()
-
-        return resnet, input_dim
+        return resnet, 1000
     else:
         raise ValueError(f"Invalid backbone: {backbone}")
 
@@ -77,9 +76,9 @@ class AlexNetEncoder(nn.Module):
 class OriginalPretextNetwork(nn.Module):
     def __init__(self, backbone: str="alexnet"):
         super(OriginalPretextNetwork, self).__init__()
-        self.encoder, input_dim = get_encoder(backbone)
+        self.encoder, embedding_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
-            nn.Linear(input_dim, 4096),
+            nn.Linear(2*embedding_dim, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
@@ -108,9 +107,9 @@ class OriginalPretextNetwork(nn.Module):
 class OurPretextNetwork(nn.Module):
     def __init__(self, backbone: str="alexnet"):
         super(OurPretextNetwork, self).__init__()
-        self.encoder, input_dim = get_encoder(backbone)            
+        self.encoder, embedding_dim = get_encoder(backbone)            
         self.fc = nn.Sequential(
-            nn.Linear(input_dim, 4096),
+            nn.Linear(2*embedding_dim, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
