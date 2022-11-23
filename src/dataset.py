@@ -1,12 +1,18 @@
 import os
 
 import cv2
+import PIL
+from tqdm import tqdm
+
 import numpy as np
+
 import torch
 from torchvision import transforms
 import torchvision.transforms.functional as TF
-from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, ColorJitter, RandomSolarize, ToPILImage, ToTensor, RandomCrop, CenterCrop, Resize
-from tqdm import tqdm
+from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, ColorJitter, RandomSolarize, ToPILImage, RandomCrop, CenterCrop, Resize
+
+from typing import List, Union, Tuple
+
 
 # transform that will be applied to every raw image
 TINY_IMAGENET_TRANSFORM = transforms.Compose([
@@ -27,7 +33,29 @@ RELIC_AUGMENTATIONS = [
 ]
 
 
-def load_tiny_imagenet(tiny_imagenet_folder, dataset_type='train', transform=transforms.ToPILImage()):
+def load_tiny_imagenet(
+        tiny_imagenet_folder: str,
+        dataset_type: str = 'train',
+        transform=ToPILImage()
+) -> List[PIL.Image]:
+    """
+    Helper function to load tiny-imagenet-200 dataset.
+
+    Parameters
+    ----------
+    tiny_imagenet_folder
+        Path to the 'tiny-imagenet-200' folder.
+    dataset_type
+        One of 'train', 'val', 'test' specifying which dataset to load.
+    transform
+        A torchvision transform that will be applied to every loaded image.
+
+    Returns
+    -------
+    List[PIL.Image]
+        A list of the loaded PIL images.
+    """
+
     images = []
     if dataset_type == 'train':
         for foldername in tqdm(os.listdir(os.path.join(tiny_imagenet_folder, dataset_type))):
@@ -45,12 +73,19 @@ def load_tiny_imagenet(tiny_imagenet_folder, dataset_type='train', transform=tra
     return images
 
 
-def image_to_patches(img):
-    """Crop split_per_side x split_per_side patches from input image.
-    Args:
-        img (Tensor image): input image.
-    Returns:
-        list[Tensor image]: A list of cropped patches.
+def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
+    """
+    Cuts an image into 9 patches and returns them in row major order.
+
+    Parameters
+    ----------
+    img
+        torch.Tensor image to be split into patches.
+
+    Returns
+    -------
+    List[torch.Tensor]
+        A list of the 9 patches.
     """
     splits_per_side = 3  # split of patches per image side
     img_size = img.size()[-1]
@@ -74,7 +109,22 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
     A sample is made up of the 8 possible tasks for a given grid ((center, neighbor), labels)
     """
 
-    def __init__(self, data_source, transform=None, samples_per_image=8):
+    def __init__(
+            self,
+            data_source: List[Union[PIL.Image, np.ndarray, torch.Tensor]],
+            transform=None,
+            samples_per_image: int = 8,
+    ):
+        """
+        Parameters
+        ----------
+        data_source
+            A list of images in one of these formats: PIL image, numpy ndarray, torch tensor.
+        transform
+            A torchvision transform that will be applied to every raw image.
+        samples_per_image
+            How many samples to take from each image. Has to be an integer between 1 and 8.
+        """
         self.data_source = data_source
         self.transform = transform if transform else TINY_IMAGENET_TRANSFORM
         self.samples_per_image = samples_per_image
@@ -92,7 +142,20 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
 
         return samples
 
-    def image_to_samples(self, img):
+    def image_to_samples(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Parameters
+        ----------
+        img
+            An image in torch.Tensor format.
+
+        Returns
+        -------
+        Tuple[torch.Tensor, torch.Tensor]
+            features, labels tuple
+            features: torch.Tensor of shape (samples_per_image, 2, *img.size())
+            labels: torch.Tensor of shape (samples_per_image) containing the corresponding labels (integers between 0 and 7)
+        """
         # convert image into patches
         patches = image_to_patches(img)
         # randomly select n_samples from all possible labels without replacement
@@ -119,7 +182,20 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
 
         self.aug_transform = Compose(aug_transforms) if aug_transforms else Compose(RELIC_AUGMENTATIONS)
 
-    def image_to_samples(self, img):
+    def image_to_samples(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Parameters
+        ----------
+        img
+            An image in torch.Tensor format.
+
+        Returns
+        -------
+        Tuple[torch.Tensor, torch.Tensor]
+            features, labels tuple
+            features: torch.Tensor of shape (samples_per_image, 3, *img.size())
+            labels: torch.Tensor of shape (samples_per_image) containing the corresponding labels (integers between 0 and 7)
+        """
         # convert image into patches
         patches = image_to_patches(img)
         # randomly select n_samples from all possible labels without replacement
