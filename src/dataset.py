@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 
 import torch
-from torchvision import transforms
 import torchvision.transforms.functional as TF
 from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
     ColorJitter, RandomSolarize, ToPILImage, RandomCrop, CenterCrop, Resize, ToTensor, Normalize
@@ -17,26 +16,26 @@ from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, 
 from typing import List, Union, Tuple
 
 # recommended normalization parameters for ImageNet
-IMAGENET_NORMALIZATION = {
+IMAGENET_NORMALIZATION_PARAMS = {
     'mean': [0.485, 0.456, 0.406],
     'std': [0.229, 0.224, 0.225],
 }
 
 # tiny-imagenet-200 raw image transform
-TINY_IMAGENET_TRANSFORM = Compose([
+TINY_IMAGENET_RESIZE = Compose([
     ToTensor(),
     Resize(224),
-    Normalize(**IMAGENET_NORMALIZATION),
 ])
 
 # from https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html#load-data
 # ImageNet raw image transform
-IMAGENET_TRANSFORM = Compose([
+IMAGENET_RESIZE = Compose([
     ToTensor(),
     Resize(256),
     CenterCrop(224),
-    Normalize(**IMAGENET_NORMALIZATION),
 ])
+
+IMAGENET_NORMALIZATION = Normalize(**IMAGENET_NORMALIZATION_PARAMS)
 
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
@@ -164,7 +163,7 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
     def __init__(
             self,
             img_paths: List[str],
-            transform=None,
+            pre_transform=None,
             samples_per_image: int = 8,
     ):
         """
@@ -172,13 +171,13 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
         ----------
         img_paths
             A list of image paths returned by the sample_img_paths function.
-        transform
+        pre_transform
             A torchvision transform that will be applied to every raw image.
         samples_per_image
             How many samples to take from each image. Has to be an integer between 1 and 8.
         """
         self.img_paths = img_paths
-        self.transform = transform if transform else IMAGENET_TRANSFORM
+        self.pre_transform = pre_transform if pre_transform else Compose([IMAGENET_RESIZE, IMAGENET_NORMALIZATION])
         self.samples_per_image = samples_per_image
 
     def __len__(self):
@@ -189,7 +188,7 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
         img_path = self.img_paths[idx]
         img = skimage.io.imread(img_path)
         # apply transform
-        img = self.transform(img)
+        img = self.pre_transform(img)
         # get samples_per_image samples from img
         samples = self.image_to_samples(img)
 
@@ -234,25 +233,29 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
     def __init__(
             self,
             img_paths: List[str],
-            transform=None,
-            samples_per_image: int = 8,
+            pre_transform=None,
             aug_transform=None,
+            post_transform=None,
+            samples_per_image: int = 8,
     ):
         """
         Parameters
         ----------
         img_paths
             A list of image paths returned by the sample_img_paths function.
-        transform
-            A torchvision transform that will be applied to every raw image.
-        samples_per_image
-            How many samples to take from each image. Has to be an integer between 1 and 8.
+        pre_transform
+            A torchvision transform that is applied to every raw image BEFORE the augmentation.
         aug_transform
             Random style augmentation transform that is separately applied twice to the outer patch.
+        pre_transform
+            A torchvision transform that is applied to every augmented image AFTER the augmentation.
+        samples_per_image
+            How many samples to take from each image. Has to be an integer between 1 and 8.
         """
-        super(OurPatchLocalizationDataset, self).__init__(img_paths, transform, samples_per_image)
+        super(OurPatchLocalizationDataset, self).__init__(img_paths=img_paths, pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE, samples_per_image=samples_per_image)
 
         self.aug_transform = aug_transform if aug_transform else RELIC_AUG_TRANSFORM
+        self.post_transform = post_transform if post_transform else IMAGENET_NORMALIZATION
 
     def image_to_samples(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -279,6 +282,10 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
                 # the middle patch (number 4) is never a neighbor
                 label += 1
             samples.append(
-                torch.stack((patches[4], self.aug_transform(patches[label]), self.aug_transform(patches[label]))))
+                torch.stack(
+                    (self.post_transform(patches[4]),
+                     self.post_transform(self.aug_transform(patches[label])),
+                     self.post_transform(self.aug_transform(patches[label])))
+                ))
 
         return torch.stack(samples), torch.from_numpy(labels)
