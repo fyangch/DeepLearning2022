@@ -60,6 +60,45 @@ class RandomColorDropping(torch.nn.Module):
         return f"{self.__class__.__name__}(channel_kept={self.channel_kept}, noise_std_factor={self.noise_std_factor})"
 
 
+class ColorProjection(torch.nn.Module):
+    """
+    Custom torchvision transform
+
+    Project colors of an RGB image to avoid trivial solutions for the patch localization pretext task making use of the
+    chromatic aberration in an image. Each pixel of the image is projected onto the green-magenta color axis as
+    described on page 4 of the "Unsupervised Visual Representation Learning by Context Prediction" paper
+    (https://arxiv.org/pdf/1505.05192.pdf).
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        img
+            An RGB image in torch.Tensor format.
+
+        Returns
+        -------
+        torch.Tensor
+            Image with colors projected onto the green-magenta color axis.
+        """
+
+        a = torch.Tensor([
+            [1, -2, 1],
+            [-2, 4, -2],
+            [1, -2, 1]
+        ])
+        B = torch.eye(3) - a / 6
+
+        return torch.einsum("ij,jhw->ihw", B, img)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}()"
+
+
 # tiny-imagenet-200 raw image transform
 TINY_IMAGENET_RESIZE = Compose([
     ToTensor(),
@@ -82,7 +121,7 @@ IMAGENET_NORMALIZATION_PARAMS = {
 
 # patch localization on imagenet post transform: 1. drop color channels (chromatic aberration) 2. normalize image
 PATCH_LOCALIZATION_POST = Compose([
-    RandomColorDropping(noise_std_factor=0.01, inplace=False),
+    ColorProjection(),
     Normalize(**IMAGENET_NORMALIZATION_PARAMS)
 ])
 
