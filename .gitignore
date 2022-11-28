@@ -130,7 +130,9 @@ dmypy.json
 
 # MODIFICATIONS
 
-data/
+data/*
+!data/imagenet_validation_RGB_10perc_subset.csv
+!data/imagenet_info.csv
 out/
 
 .DS_Store

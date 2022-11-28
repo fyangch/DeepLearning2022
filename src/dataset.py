@@ -9,43 +9,14 @@ import numpy as np
 import pandas as pd
 
 import torch
+from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
-from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
-    ColorJitter, RandomSolarize, ToPILImage, RandomCrop, CenterCrop, Resize, ToTensor, Normalize
+from torchvision.transforms import Compose, ToPILImage, RandomCrop, CenterCrop, Resize
 
-from typing import List, Union, Tuple
+from typing import List, Tuple
 
-# recommended normalization parameters for ImageNet
-IMAGENET_NORMALIZATION_PARAMS = {
-    'mean': [0.485, 0.456, 0.406],
-    'std': [0.229, 0.224, 0.225],
-}
-
-# tiny-imagenet-200 raw image transform
-TINY_IMAGENET_RESIZE = Compose([
-    ToTensor(),
-    Resize(224),
-])
-
-# from https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html#load-data
-# ImageNet raw image transform
-IMAGENET_RESIZE = Compose([
-    ToTensor(),
-    Resize(256),
-    CenterCrop(224),
-])
-
-IMAGENET_NORMALIZATION = Normalize(**IMAGENET_NORMALIZATION_PARAMS)
-
-# random augmentations from ReLIC paper
-RELIC_AUG_TRANSFORM = Compose([
-    RandomResizedCrop(size=224, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333)),
-    RandomHorizontalFlip(p=0.5),
-    ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    RandomGrayscale(p=0.5),
-    GaussianBlur(kernel_size=23, sigma=(0.1, 0.2)),
-    RandomSolarize(0.5, p=0.5),
-])
+# project imports
+from src.transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST
 
 
 def load_tiny_imagenet(
@@ -88,40 +59,82 @@ def load_tiny_imagenet(
     return images
 
 
-def sample_img_paths(
+def get_imagenet_info(
         labeldir: str = './data/ILSVRC2012_devkit_t12/data/ILSVRC2012_validation_ground_truth.txt',
         imagedir: str = './data/ILSVRC2012_img_val',
-        frac: float = .1,
+        savefile: str = './data/imagenet_info.csv',
     ) -> pd.DataFrame:
     """
-    Helper function to sample the ILSVRC2012_img_val dataset in a stratified method.
+    Helper function to get information (path, label, n_channels) about every image in the imagenet dataset.
+
     Parameters
     ----------
     labeldir
         Path to the 'ILSVRC2012_validation_ground_truth.txt' file.
     imagedir
         Path to the 'ILSVRC2012_img_val' folder.
-    frac
-        Fraction of (image title, label) pairs that are kept in the sampling process compared to the initial entire dataset.
+
     Returns
     -------
     pd.DataFrame
-        A DataFrame of the sampled Image titles and their corresponding label.
+        A pandas DataFrame containing the imagenet information.
     """
+
+    # check if imagenet_info already in data folder
+    if os.path.isfile(savefile):
+        return pd.read_csv(savefile, index_col=0)
+
     # Collect every class label for each image
     labels = pd.read_csv(labeldir, header=None).values.flatten()
 
     # Gather all image titles
     image_titles = os.listdir(imagedir)
     image_titles.sort()
-    image_paths = [os.path.join(imagedir, image_title) for image_title in image_titles]
+    image_paths = [str(os.path.join(imagedir, image_title)) for image_title in image_titles]
+
+    # Gather the number of channels for each image (to filter out grayscale images)
+    n_channels = []
+    for image_path in image_paths:
+        img = skimage.io.imread(image_path)
+        if len(img.shape) < 3:
+            n_channels.append(1)
+        else:
+            n_channels.append(img.shape[-1])
 
     # Create a Dataframe with the image titles and labels
-    merge_dict = {'images': image_paths, 'labels': labels}
+    merge_dict = {'images': image_paths, 'labels': labels, 'n_channels': n_channels}
     df = pd.DataFrame(merge_dict)
 
+    # save imagenet info in data folder
+    df.to_csv(savefile)
+
+    return df
+
+
+def sample_img_paths(
+        imagenet_info: pd.DataFrame,
+        frac: float = .1,
+    ) -> np.ndarray:
+    """
+    Helper function to sample the ILSVRC2012_img_val dataset in a stratified method.
+    Parameters
+    ----------
+    imagenet_info
+        Pandas DataFramed that has been calculated by the `get_imagenet_info` function.
+    frac
+        Fraction of (image title, label) pairs that are kept in the sampling process compared to the initial entire dataset.
+    Returns
+    -------
+    np.ndarray
+        A numpy array of the sampled image paths.
+    """
+    df = imagenet_info
+
+    # Only consider RGB images with 3 channels
+    df = df[df['n_channels'] == 3]
+
     # Return a stratified sample of the dataset
-    return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))
+    return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))['images'].values
 
 
 def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
@@ -143,7 +156,7 @@ def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
     grid_size = img_size // splits_per_side
     patch_size = img_size // 4
 
-    # we first use a center crop (to ensure gap) followed by a random crop (jitter) followed by resize (to ensure img_size stays the same)
+    # 1. center crop (ensure gap) 2. random crop (random jitter) 3. resize (to ensure img_size stays the same)
     random_jitter = Compose([CenterCrop(grid_size - patch_size // 4), RandomCrop(patch_size), Resize(img_size)])
     patches = [
         random_jitter(TF.crop(img, i * grid_size, j * grid_size, grid_size, grid_size))
@@ -154,7 +167,7 @@ def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
     return patches
 
 
-class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
+class OriginalPatchLocalizationDataset(Dataset):
     """
     Dataset implementing the original Patch Localization method
     A sample is made up of the 8 possible tasks for a given grid ((center, neighbor), labels)
@@ -177,7 +190,7 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
             How many samples to take from each image. Has to be an integer between 1 and 8.
         """
         self.img_paths = img_paths
-        self.pre_transform = pre_transform if pre_transform else Compose([IMAGENET_RESIZE, IMAGENET_NORMALIZATION])
+        self.pre_transform = pre_transform if pre_transform else Compose([IMAGENET_RESIZE, PATCH_LOCALIZATION_POST])
         self.samples_per_image = samples_per_image
 
     def __len__(self):
@@ -223,7 +236,6 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
         return torch.stack(samples), torch.from_numpy(labels)
 
 
-
 class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
     """
     Dataset implementing our modified Patch Localization method
@@ -255,7 +267,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
         super(OurPatchLocalizationDataset, self).__init__(img_paths=img_paths, pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE, samples_per_image=samples_per_image)
 
         self.aug_transform = aug_transform if aug_transform else RELIC_AUG_TRANSFORM
-        self.post_transform = post_transform if post_transform else IMAGENET_NORMALIZATION
+        self.post_transform = post_transform if post_transform else PATCH_LOCALIZATION_POST
 
     def image_to_samples(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
