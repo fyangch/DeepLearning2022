@@ -9,43 +9,14 @@ import numpy as np
 import pandas as pd
 
 import torch
+from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
-from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
-    ColorJitter, RandomSolarize, ToPILImage, RandomCrop, CenterCrop, Resize, ToTensor, Normalize
+from torchvision.transforms import Compose, ToPILImage, RandomCrop, CenterCrop, Resize
 
-from typing import List, Union, Tuple
+from typing import List, Tuple
 
-# recommended normalization parameters for ImageNet
-IMAGENET_NORMALIZATION_PARAMS = {
-    'mean': [0.485, 0.456, 0.406],
-    'std': [0.229, 0.224, 0.225],
-}
-
-# tiny-imagenet-200 raw image transform
-TINY_IMAGENET_RESIZE = Compose([
-    ToTensor(),
-    Resize(224),
-])
-
-# from https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html#load-data
-# ImageNet raw image transform
-IMAGENET_RESIZE = Compose([
-    ToTensor(),
-    Resize(256),
-    CenterCrop(224),
-])
-
-IMAGENET_NORMALIZATION = Normalize(**IMAGENET_NORMALIZATION_PARAMS)
-
-# random augmentations from ReLIC paper
-RELIC_AUG_TRANSFORM = Compose([
-    RandomResizedCrop(size=224, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333)),
-    RandomHorizontalFlip(p=0.5),
-    ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    RandomGrayscale(p=0.5),
-    GaussianBlur(kernel_size=23, sigma=(0.1, 0.2)),
-    RandomSolarize(0.5, p=0.5),
-])
+# project imports
+from transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST
 
 
 def load_tiny_imagenet(
@@ -143,7 +114,7 @@ def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
     grid_size = img_size // splits_per_side
     patch_size = img_size // 4
 
-    # we first use a center crop (to ensure gap) followed by a random crop (jitter) followed by resize (to ensure img_size stays the same)
+    # 1. center crop (ensure gap) 2. random crop (random jitter) 3. resize (to ensure img_size stays the same)
     random_jitter = Compose([CenterCrop(grid_size - patch_size // 4), RandomCrop(patch_size), Resize(img_size)])
     patches = [
         random_jitter(TF.crop(img, i * grid_size, j * grid_size, grid_size, grid_size))
@@ -154,61 +125,7 @@ def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
     return patches
 
 
-class RandomColorDropping(torch.nn.Module):
-    """
-    Custom torchvision transform
-
-    Drop all except for one randomly chosen color channel from the image and replace the dropped channels
-    with gaussian noise with 0 mean and `noise_std_factor` * torch.std(img[`channel_kept`]) standard deviation
-    """
-
-    def __init__(self, noise_std_factor: float = 0.01, inplace: bool = False):
-        """
-        Parameters
-        ----------
-        noise_std_factor
-            The factor by which the standard deviation of the channel kept should be scaled to determine the
-            standard deviation of the gaussian noise that the dropped channels are replaced with.
-        inplace
-            Whether to apply the transform directly to the input image or to a copy of it.
-        """
-
-        super().__init__()
-
-        self.noise_std_factor = noise_std_factor
-        self.inplace = inplace
-
-    def forward(self, img: torch.Tensor) -> torch.Tensor:
-        """
-        Parameters
-        ----------
-        img
-            An image in torch.Tensor format.
-
-        Returns
-        -------
-        torch.Tensor
-            Image with 2 randomly selected channels dropped.
-        """
-
-        if not self.inplace:
-            img = torch.clone(img)
-
-        # randomly determine a channel to be kept
-        channel_kept = torch.randint(3, (1,)).item()
-        channels_dropped = [i for i in range(3) if i != channel_kept]
-
-        # replace dropped channels with gaussian noise
-        img[channels_dropped] = torch.normal(mean=0, std=self.noise_std_factor * torch.std(img[channel_kept]),
-                                             size=img[channels_dropped].shape)
-
-        return img
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(channel_kept={self.channel_kept}, noise_std_factor={self.noise_std_factor})"
-
-
-class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
+class OriginalPatchLocalizationDataset(Dataset):
     """
     Dataset implementing the original Patch Localization method
     A sample is made up of the 8 possible tasks for a given grid ((center, neighbor), labels)
@@ -231,7 +148,7 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
             How many samples to take from each image. Has to be an integer between 1 and 8.
         """
         self.img_paths = img_paths
-        self.pre_transform = pre_transform if pre_transform else Compose([IMAGENET_RESIZE, IMAGENET_NORMALIZATION])
+        self.pre_transform = pre_transform if pre_transform else Compose([IMAGENET_RESIZE, PATCH_LOCALIZATION_POST])
         self.samples_per_image = samples_per_image
 
     def __len__(self):
@@ -277,7 +194,6 @@ class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
         return torch.stack(samples), torch.from_numpy(labels)
 
 
-
 class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
     """
     Dataset implementing our modified Patch Localization method
@@ -309,7 +225,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
         super(OurPatchLocalizationDataset, self).__init__(img_paths=img_paths, pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE, samples_per_image=samples_per_image)
 
         self.aug_transform = aug_transform if aug_transform else RELIC_AUG_TRANSFORM
-        self.post_transform = post_transform if post_transform else IMAGENET_NORMALIZATION
+        self.post_transform = post_transform if post_transform else PATCH_LOCALIZATION_POST
 
     def image_to_samples(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
