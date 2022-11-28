@@ -34,6 +34,7 @@ def train_model(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
+    device: str,
     criterion: nn.Module,
     optimizer: Optional[Optimizer]=None,
     start_epoch: int=0, # only relevant if you resume from a checkpoint
@@ -56,10 +57,10 @@ def train_model(
     best_acc = 0.0 # tracks the best accuracy so far
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
-        train(model, train_loader, criterion, optimizer, epoch, logger, tb_writer, tb_dict, log_frequency)
+        train(model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, tb_dict, log_frequency)
 
         # evaluate on validation set
-        acc = validate(model, val_loader, criterion, logger, tb_writer, tb_dict, log_frequency)
+        acc = validate(model, val_loader, device, criterion, logger, tb_writer, tb_dict, log_frequency)
 
         # save best model so far
         if acc > best_acc:
@@ -82,6 +83,7 @@ def train_model(
 def train(
     model: nn.Module,
     train_loader: DataLoader,
+    device: str,
     criterion: nn.Module,
     optimizer: Optimizer,
     epoch: int,
@@ -104,7 +106,7 @@ def train(
         curr_time = time.time()
 
         # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
-        target = target.view(-1).long() # cross entropy loss function expects long type
+        target = target.view(-1).long().to(device) # cross entropy loss function expects long type
 
         # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
         if input.shape[2] == 2: # original pretext task
@@ -118,7 +120,7 @@ def train(
 
             data_time.update(time.time() - curr_time) # record data loading time
 
-            output = model(center, neighbor) 
+            output = model(center.to(device), neighbor.to(device)) 
             loss = criterion(output, target) 
         else: # our pretext task
             center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
@@ -132,7 +134,7 @@ def train(
 
             data_time.update(time.time() - curr_time) # record data loading time
 
-            output1, output2 = model(center, neighbor1, neighbor2)
+            output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
             loss = criterion(output1, output2, target)
 
         # compute gradient and do update step
@@ -154,7 +156,7 @@ def train(
                   'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
                       epoch, i, len(train_loader), batch_time=batch_time,
-                      speed=input.size(0)/batch_time.val,
+                      speed=input.size(0)*input.size(1)/batch_time.val,
                       data_time=data_time, loss=losses)
             logger.info(msg)
             
@@ -166,6 +168,7 @@ def train(
 def validate(
     model: nn.Module,
     val_loader: DataLoader,
+    device: str,
     criterion: nn.Module,
     logger: logging.Logger,
     tb_writer: SummaryWriter,
@@ -190,7 +193,7 @@ def validate(
             curr_time = time.time()
 
             # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
-            target = target.view(-1).long() # cross entropy loss function expects long type
+            target = target.view(-1).long().to(device) # cross entropy loss function expects long type
             
             # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
             if input.shape[2] == 2: # original pretext task
@@ -202,7 +205,7 @@ def validate(
                 center = center.view(-1, shape[2], shape[3], shape[4])
                 neighbor = center.view(-1, shape[2], shape[3], shape[4])
 
-                output = model(center, neighbor) 
+                output = model(center.to(device), neighbor.to(device)) 
                 loss = criterion(output, target) 
 
                 # update list of labels and predictions for computation of accuracy
@@ -218,7 +221,7 @@ def validate(
                 neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
                 neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
 
-                output1, output2 = model(center, neighbor1, neighbor2)
+                output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
                 loss = criterion(output1, output2, target)
 
                 # update list of labels and predictions for computation of accuracy
