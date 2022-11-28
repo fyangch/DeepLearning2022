@@ -154,6 +154,60 @@ def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:
     return patches
 
 
+class RandomColorDropping(torch.nn.Module):
+    """
+    Custom torchvision transform
+
+    Drop all except for one randomly chosen color channel from the image and replace the dropped channels
+    with gaussian noise with 0 mean and `noise_std_factor` * torch.std(img[`channel_kept`]) standard deviation
+    """
+
+    def __init__(self, noise_std_factor: float = 0.01, inplace: bool = False):
+        """
+        Parameters
+        ----------
+        noise_std_factor
+            The factor by which the standard deviation of the channel kept should be scaled to determine the
+            standard deviation of the gaussian noise that the dropped channels are replaced with.
+        inplace
+            Whether to apply the transform directly to the input image or to a copy of it.
+        """
+
+        super().__init__()
+
+        self.noise_std_factor = noise_std_factor
+        self.inplace = inplace
+
+    def forward(self, img: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        img
+            An image in torch.Tensor format.
+
+        Returns
+        -------
+        torch.Tensor
+            Image with 2 randomly selected channels dropped.
+        """
+
+        if not self.inplace:
+            img = torch.clone(img)
+
+        # randomly determine a channel to be kept
+        channel_kept = torch.randint(3, (1,)).item()
+        channels_dropped = [i for i in range(3) if i != channel_kept]
+
+        # replace dropped channels with gaussian noise
+        img[channels_dropped] = torch.normal(mean=0, std=self.noise_std_factor * torch.std(img[channel_kept]),
+                                             size=img[channels_dropped].shape)
+
+        return img
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(channel_kept={self.channel_kept}, noise_std_factor={self.noise_std_factor})"
+
+
 class OriginalPatchLocalizationDataset(torch.utils.data.Dataset):
     """
     Dataset implementing the original Patch Localization method
