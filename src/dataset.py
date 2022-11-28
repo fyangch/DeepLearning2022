@@ -16,7 +16,7 @@ from torchvision.transforms import Compose, ToPILImage, RandomCrop, CenterCrop, 
 from typing import List, Tuple
 
 # project imports
-from transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST
+from src.transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST
 
 
 def load_tiny_imagenet(
@@ -59,40 +59,82 @@ def load_tiny_imagenet(
     return images
 
 
-def sample_img_paths(
+def get_imagenet_info(
         labeldir: str = './data/ILSVRC2012_devkit_t12/data/ILSVRC2012_validation_ground_truth.txt',
         imagedir: str = './data/ILSVRC2012_img_val',
-        frac: float = .1,
+        savefile: str = './data/imagenet_info.csv',
     ) -> pd.DataFrame:
     """
-    Helper function to sample the ILSVRC2012_img_val dataset in a stratified method.
+    Helper function to get information (path, label, n_channels) about every image in the imagenet dataset.
+
     Parameters
     ----------
     labeldir
         Path to the 'ILSVRC2012_validation_ground_truth.txt' file.
     imagedir
         Path to the 'ILSVRC2012_img_val' folder.
-    frac
-        Fraction of (image title, label) pairs that are kept in the sampling process compared to the initial entire dataset.
+
     Returns
     -------
     pd.DataFrame
-        A DataFrame of the sampled Image titles and their corresponding label.
+        A pandas DataFrame containing the imagenet information.
     """
+
+    # check if imagenet_info already in data folder
+    if os.path.isfile(savefile):
+        return pd.read_csv(savefile, index_col=0)
+
     # Collect every class label for each image
     labels = pd.read_csv(labeldir, header=None).values.flatten()
 
     # Gather all image titles
     image_titles = os.listdir(imagedir)
     image_titles.sort()
-    image_paths = [os.path.join(imagedir, image_title) for image_title in image_titles]
+    image_paths = [str(os.path.join(imagedir, image_title)) for image_title in image_titles]
+
+    # Gather the number of channels for each image (to filter out grayscale images)
+    n_channels = []
+    for image_path in image_paths:
+        img = skimage.io.imread(image_path)
+        if len(img.shape) < 3:
+            n_channels.append(1)
+        else:
+            n_channels.append(img.shape[-1])
 
     # Create a Dataframe with the image titles and labels
-    merge_dict = {'images': image_paths, 'labels': labels}
+    merge_dict = {'images': image_paths, 'labels': labels, 'n_channels': n_channels}
     df = pd.DataFrame(merge_dict)
 
+    # save imagenet info in data folder
+    df.to_csv(savefile)
+
+    return df
+
+
+def sample_img_paths(
+        imagenet_info: pd.DataFrame,
+        frac: float = .1,
+    ) -> np.ndarray:
+    """
+    Helper function to sample the ILSVRC2012_img_val dataset in a stratified method.
+    Parameters
+    ----------
+    imagenet_info
+        Pandas DataFramed that has been calculated by the `get_imagenet_info` function.
+    frac
+        Fraction of (image title, label) pairs that are kept in the sampling process compared to the initial entire dataset.
+    Returns
+    -------
+    np.ndarray
+        A numpy array of the sampled image paths.
+    """
+    df = imagenet_info
+
+    # Only consider RGB images with 3 channels
+    df = df[df['n_channels'] == 3]
+
     # Return a stratified sample of the dataset
-    return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))
+    return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))['images'].values
 
 
 def image_to_patches(img: torch.Tensor) -> List[torch.Tensor]:

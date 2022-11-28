@@ -40,6 +40,9 @@ class RandomColorDropping(torch.nn.Module):
             Image with 2 randomly selected channels dropped.
         """
 
+        assert img.shape[0] == 3, f"tensor inputs to RandomColorDropping must have 3 color channels, " \
+                                  f"image passed has shape {img.shape}"
+
         if not self.inplace:
             img = torch.clone(img)
 
