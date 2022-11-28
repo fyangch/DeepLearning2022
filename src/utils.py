@@ -13,12 +13,13 @@ from typing import Tuple
 def create_logger(experiment_id: str) -> Tuple[logging.Logger, SummaryWriter]:
     # set up directory for the current experiment
     experiment_dir = os.path.join("out", experiment_id)
-    if not os.path.exists(experiment_dir):
-        os.makedirs(experiment_dir)
+    log_dir = os.path.join(experiment_dir, "logs")
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
     # define filename for log file
     time_str = time.strftime('%Y-%m-%d-%H-%M')
-    log_fn = os.path.join(experiment_dir, f"{time_str}.log")
+    log_fn = os.path.join(log_dir, f"{time_str}.log")
     
     # set up logger
     logging.basicConfig(filename=str(log_fn), format="%(asctime)-15s %(message)s")

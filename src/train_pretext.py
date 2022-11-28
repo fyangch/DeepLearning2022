@@ -13,7 +13,7 @@ import logging
 
 from typing import Optional
 
-from utils import create_logger, save_checkpoint, save_model
+from src.utils import create_logger, save_checkpoint, save_model
 
 
 # fix random seeds for reproducibility
@@ -103,17 +103,33 @@ def train(
     for i, (input, target) in enumerate(train_loader):
         curr_time = time.time()
 
-        # original pretext task
-        if len(input) == 2: 
-            center, neighbor = input[0], input[1]
+        # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
+        target = target.view(-1).long() # cross entropy loss function expects long type
+
+        # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
+        if input.shape[2] == 2: # original pretext task
+            center, neighbor = input[:,:,0,:,:,:], input[:,:,1,:,:,:]
+
+            # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+            # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+            shape = center.shape
+            center = center.view(-1, shape[2], shape[3], shape[4])
+            neighbor = center.view(-1, shape[2], shape[3], shape[4])
+
             data_time.update(time.time() - curr_time) # record data loading time
 
             output = model(center, neighbor) 
             loss = criterion(output, target) 
+        else: # our pretext task
+            center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
 
-        # our pretext task
-        else:
-            center, neighbor1, neighbor2 = input[0], input[1], input[2]
+            # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+            # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+            shape = center.shape
+            center = center.view(-1, shape[2], shape[3], shape[4])
+            neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
+            neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
+
             data_time.update(time.time() - curr_time) # record data loading time
 
             output1, output2 = model(center, neighbor1, neighbor2)
@@ -172,28 +188,44 @@ def validate(
     with torch.no_grad():
         for i, (input, target) in enumerate(val_loader):
             curr_time = time.time()
+
+            # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
+            target = target.view(-1).long() # cross entropy loss function expects long type
             
-            # original pretext task
-            if len(input) == 2: 
-                center, neighbor = input[0], input[1]
+            # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
+            if input.shape[2] == 2: # original pretext task
+                center, neighbor = input[:,:,0,:,:,:], input[:,:,1,:,:,:]
+
+                # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+                # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+                shape = center.shape
+                center = center.view(-1, shape[2], shape[3], shape[4])
+                neighbor = center.view(-1, shape[2], shape[3], shape[4])
+
                 output = model(center, neighbor) 
                 loss = criterion(output, target) 
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
-                all_labels.extend(target.detach().cpu().numpy())
+                all_labels.append(target.detach().cpu().numpy())
+            else: # our pretext task
+                center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
 
-            # our pretext task
-            else:
-                center, neighbor1, neighbor2 = input[0], input[1], input[2]
+                # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+                # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+                shape = center.shape
+                center = center.view(-1, shape[2], shape[3], shape[4])
+                neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
+                neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
+
                 output1, output2 = model(center, neighbor1, neighbor2)
                 loss = criterion(output1, output2, target)
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
                 all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
-                all_labels.extend(target.detach().cpu().numpy())
-                all_labels.extend(target.detach().cpu().numpy())
+                all_labels.append(target.detach().cpu().numpy())
+                all_labels.append(target.detach().cpu().numpy())
 
             # record loss
             losses.update(loss.item(), center.size(0))
