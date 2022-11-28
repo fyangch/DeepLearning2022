@@ -62,7 +62,7 @@ class AlexNetEncoder(nn.Module):
         )
         self.fc6 = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(256, 4096),
+            nn.Linear(2304, 4096),
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(4096),
         )
