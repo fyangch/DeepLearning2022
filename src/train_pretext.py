@@ -116,7 +116,15 @@ def train(
             # to [batch_size * samples_per_image, n_channels, img_height, img_width]
             shape = center.shape
             center = center.view(-1, shape[2], shape[3], shape[4])
-            neighbor = center.view(-1, shape[2], shape[3], shape[4])
+            neighbor = neighbor.view(-1, shape[2], shape[3], shape[4])
+
+            # import matplotlib.pyplot as plt
+            # plt.imshow(center[0].permute(1, 2, 0))
+            # plt.show()
+            # plt.imshow(neighbor[0].permute(1, 2, 0))
+            # plt.show()
+            # print(f"label: {target.cpu()[0]}")
+            
 
             data_time.update(time.time() - curr_time) # record data loading time
 
@@ -203,7 +211,7 @@ def validate(
                 # to [batch_size * samples_per_image, n_channels, img_height, img_width]
                 shape = center.shape
                 center = center.view(-1, shape[2], shape[3], shape[4])
-                neighbor = center.view(-1, shape[2], shape[3], shape[4])
+                neighbor = neighbor.view(-1, shape[2], shape[3], shape[4])
 
                 output = model(center.to(device), neighbor.to(device)) 
                 loss = criterion(output, target) 
@@ -253,7 +261,7 @@ def validate(
         logger.info('Accuracy: {:.3f}'.format(accuracy))
 
         # update TensorBoard
-        tb_writer.add_scalar('valid_loss', losses.avg, tb_dict['valid_global_steps'])
+        tb_writer.add_scalar('valid_loss', losses.val, tb_dict['valid_global_steps'])
         tb_writer.add_scalar('valid_acc', accuracy, tb_dict['valid_global_steps'])
         tb_dict['valid_global_steps'] += 1
 
