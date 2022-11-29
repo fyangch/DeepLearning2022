@@ -10,12 +10,17 @@ from tensorboardX import SummaryWriter
 from typing import Tuple
 
 
-def create_logger(experiment_id: str) -> Tuple[logging.Logger, SummaryWriter]:
+def create_logger_and_descr_file(experiment_id: str, experiment_descr: str) -> Tuple[logging.Logger, SummaryWriter]:
     # set up directory for the current experiment
     experiment_dir = os.path.join("out", experiment_id)
     log_dir = os.path.join(experiment_dir, "logs")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
+
+    # create text file with description of experiment
+    file = open(os.path.join(experiment_dir, "description.txt"), "w")
+    file.write(experiment_descr)
+    file.close()
 
     # define filename for log file
     time_str = time.strftime('%Y-%m-%d-%H-%M')

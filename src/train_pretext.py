@@ -13,7 +13,7 @@ import logging
 
 from typing import Optional
 
-from src.utils import create_logger, save_checkpoint, save_model
+from src.utils import create_logger_and_descr_file, save_checkpoint, save_model
 
 
 # fix random seeds for reproducibility
@@ -31,6 +31,7 @@ os.environ['PYTHONHASHSEED'] = str(seed)"""
 # More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 def train_model(
     experiment_id: str, # e.g. "our_pretext_12"
+    experiment_descr: str,
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
@@ -44,11 +45,7 @@ def train_model(
     """ Training loop. """
 
     # Create text logger and TensorBoard writer
-    logger, tb_writer = create_logger(experiment_id)
-    tb_dict = { # dictionary for TensorBoard logging
-        "train_global_steps": 0,
-        "valid_global_steps": 0,
-    }
+    logger, tb_writer = create_logger_and_descr_file(experiment_id, experiment_descr)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
@@ -57,10 +54,10 @@ def train_model(
     best_acc = 0.0 # tracks the best accuracy so far
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
-        train(model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, tb_dict, log_frequency)
+        train(model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
 
         # evaluate on validation set
-        acc = validate(model, val_loader, device, criterion, logger, tb_writer, tb_dict, log_frequency)
+        acc = validate(model, val_loader, device, criterion, epoch, logger, tb_writer, log_frequency)
 
         # save best model so far
         if acc > best_acc:
@@ -89,7 +86,6 @@ def train(
     epoch: int,
     logger: logging.Logger,
     tb_writer: SummaryWriter,
-    tb_dict: dict,
     log_frequency: int,
     ) -> None:
     """ Train the model for one epoch. """
@@ -157,7 +153,7 @@ def train(
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
-        if i % log_frequency == 0:
+        if i % log_frequency == 0 or i == len(train_loader)-1:
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
@@ -168,9 +164,8 @@ def train(
                       data_time=data_time, loss=losses)
             logger.info(msg)
             
-            # update TensorBoard
-            tb_writer.add_scalar('train_loss', losses.val, tb_dict['train_global_steps'])
-            tb_dict['train_global_steps'] += 1
+        # update TensorBoard after each epoch
+        tb_writer.add_scalar('train_loss', losses.val, epoch)
 
 
 def validate(
@@ -178,9 +173,9 @@ def validate(
     val_loader: DataLoader,
     device: str,
     criterion: nn.Module,
+    epoch: int,
     logger: logging.Logger,
     tb_writer: SummaryWriter,
-    tb_dict: dict,
     log_frequency: int,
     ) -> float:
     """ Validate the model using the validation set and return the accuracy. """
@@ -245,7 +240,7 @@ def validate(
             batch_time.update(time.time() - curr_time)
 
             # log after every `log_frequency` batches
-            if i % log_frequency == 0:
+            if i % log_frequency == 0 or i == len(val_loader)-1:
                 msg = 'Test: [{0}/{1}]\t' \
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
                       'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(
@@ -261,9 +256,8 @@ def validate(
         logger.info('Accuracy: {:.3f}'.format(accuracy))
 
         # update TensorBoard
-        tb_writer.add_scalar('valid_loss', losses.val, tb_dict['valid_global_steps'])
-        tb_writer.add_scalar('valid_acc', accuracy, tb_dict['valid_global_steps'])
-        tb_dict['valid_global_steps'] += 1
+        tb_writer.add_scalar('valid_loss', losses.val, epoch)
+        tb_writer.add_scalar('valid_acc', accuracy, epoch)
 
     return accuracy
 
