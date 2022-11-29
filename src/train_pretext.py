@@ -159,13 +159,13 @@ def train(
                   'Speed {speed:.1f} samples/s\t' \
                   'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
-                      epoch, i, len(train_loader), batch_time=batch_time,
+                      epoch, i, len(train_loader)-1, batch_time=batch_time,
                       speed=input.size(0)*input.size(1)/batch_time.val,
                       data_time=data_time, loss=losses)
             logger.info(msg)
             
-        # update TensorBoard after each epoch
-        tb_writer.add_scalar('train_loss', losses.val, epoch)
+    # update TensorBoard after each epoch
+    tb_writer.add_scalar('train_loss', losses.val, epoch)
 
 
 def validate(
@@ -244,7 +244,7 @@ def validate(
                 msg = 'Test: [{0}/{1}]\t' \
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
                       'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(
-                          i, len(val_loader), batch_time=batch_time,
+                          i, len(val_loader)-1, batch_time=batch_time,
                           loss=losses)
                 logger.info(msg)
 

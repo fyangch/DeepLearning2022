@@ -79,8 +79,8 @@ class OriginalPretextNetwork(nn.Module):
         self.encoder, embedding_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
             nn.Linear(2*embedding_dim, 4096),
-            nn.ReLU(inplace=True), 
-            nn.Linear(4096, 4096),
+            # nn.ReLU(inplace=True), 
+            # nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 8)
         )
@@ -110,8 +110,8 @@ class OurPretextNetwork(nn.Module):
         self.encoder, embedding_dim = get_encoder(backbone)            
         self.fc = nn.Sequential(
             nn.Linear(2*embedding_dim, 4096),
-            nn.ReLU(inplace=True), 
-            nn.Linear(4096, 4096),
+            # nn.ReLU(inplace=True), 
+            # nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 8)
         )

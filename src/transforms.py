@@ -128,7 +128,7 @@ PATCH_LOCALIZATION_POST = Compose([
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
     RandomResizedCrop(size=224, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333)),
-    RandomHorizontalFlip(p=0.5),
+    #RandomHorizontalFlip(p=0.5),
     ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
     RandomGrayscale(p=0.5),
     GaussianBlur(kernel_size=23, sigma=(0.1, 0.2)),
