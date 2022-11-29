@@ -13,7 +13,7 @@ import logging
 
 from typing import Optional
 
-from utils import create_logger, save_checkpoint, save_model
+from src.utils import create_logger_and_descr_file, save_checkpoint, save_model
 
 
 # fix random seeds for reproducibility
@@ -31,9 +31,11 @@ os.environ['PYTHONHASHSEED'] = str(seed)"""
 # More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 def train_model(
     experiment_id: str, # e.g. "our_pretext_12"
+    experiment_descr: str,
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
+    device: str,
     criterion: nn.Module,
     optimizer: Optional[Optimizer]=None,
     start_epoch: int=0, # only relevant if you resume from a checkpoint
@@ -43,11 +45,7 @@ def train_model(
     """ Training loop. """
 
     # Create text logger and TensorBoard writer
-    logger, tb_writer = create_logger(experiment_id)
-    tb_dict = { # dictionary for TensorBoard logging
-        "train_global_steps": 0,
-        "valid_global_steps": 0,
-    }
+    logger, tb_writer = create_logger_and_descr_file(experiment_id, experiment_descr)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
@@ -56,10 +54,10 @@ def train_model(
     best_acc = 0.0 # tracks the best accuracy so far
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
-        train(model, train_loader, criterion, optimizer, epoch, logger, tb_writer, tb_dict, log_frequency)
+        train(model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
 
         # evaluate on validation set
-        acc = validate(model, val_loader, criterion, logger, tb_writer, tb_dict, log_frequency)
+        acc = validate(model, val_loader, device, criterion, epoch, logger, tb_writer, log_frequency)
 
         # save best model so far
         if acc > best_acc:
@@ -82,12 +80,12 @@ def train_model(
 def train(
     model: nn.Module,
     train_loader: DataLoader,
+    device: str,
     criterion: nn.Module,
     optimizer: Optimizer,
     epoch: int,
     logger: logging.Logger,
     tb_writer: SummaryWriter,
-    tb_dict: dict,
     log_frequency: int,
     ) -> None:
     """ Train the model for one epoch. """
@@ -103,20 +101,44 @@ def train(
     for i, (input, target) in enumerate(train_loader):
         curr_time = time.time()
 
-        # original pretext task
-        if len(input) == 2: 
-            center, neighbor = input[0], input[1]
+        # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
+        target = target.view(-1).long().to(device) # cross entropy loss function expects long type
+
+        # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
+        if input.shape[2] == 2: # original pretext task
+            center, neighbor = input[:,:,0,:,:,:], input[:,:,1,:,:,:]
+
+            # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+            # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+            shape = center.shape
+            center = center.view(-1, shape[2], shape[3], shape[4])
+            neighbor = neighbor.view(-1, shape[2], shape[3], shape[4])
+
+            # import matplotlib.pyplot as plt
+            # plt.imshow(center[0].permute(1, 2, 0))
+            # plt.show()
+            # plt.imshow(neighbor[0].permute(1, 2, 0))
+            # plt.show()
+            # print(f"label: {target.cpu()[0]}")
+            
+
             data_time.update(time.time() - curr_time) # record data loading time
 
-            output = model(center, neighbor) 
+            output = model(center.to(device), neighbor.to(device)) 
             loss = criterion(output, target) 
+        else: # our pretext task
+            center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
 
-        # our pretext task
-        else:
-            center, neighbor1, neighbor2 = input[0], input[1], input[2]
+            # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+            # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+            shape = center.shape
+            center = center.view(-1, shape[2], shape[3], shape[4])
+            neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
+            neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
+
             data_time.update(time.time() - curr_time) # record data loading time
 
-            output1, output2 = model(center, neighbor1, neighbor2)
+            output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
             loss = criterion(output1, output2, target)
 
         # compute gradient and do update step
@@ -131,29 +153,29 @@ def train(
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
-        if i % log_frequency == 0:
+        if i % log_frequency == 0 or i == len(train_loader)-1:
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
                   'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
-                      epoch, i, len(train_loader), batch_time=batch_time,
-                      speed=input.size(0)/batch_time.val,
+                      epoch, i, len(train_loader)-1, batch_time=batch_time,
+                      speed=input.size(0)*input.size(1)/batch_time.val,
                       data_time=data_time, loss=losses)
             logger.info(msg)
             
-            # update TensorBoard
-            tb_writer.add_scalar('train_loss', losses.val, tb_dict['train_global_steps'])
-            tb_dict['train_global_steps'] += 1
+    # update TensorBoard after each epoch
+    tb_writer.add_scalar('train_loss', losses.val, epoch)
 
 
 def validate(
     model: nn.Module,
     val_loader: DataLoader,
+    device: str,
     criterion: nn.Module,
+    epoch: int,
     logger: logging.Logger,
     tb_writer: SummaryWriter,
-    tb_dict: dict,
     log_frequency: int,
     ) -> float:
     """ Validate the model using the validation set and return the accuracy. """
@@ -172,28 +194,44 @@ def validate(
     with torch.no_grad():
         for i, (input, target) in enumerate(val_loader):
             curr_time = time.time()
+
+            # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
+            target = target.view(-1).long().to(device) # cross entropy loss function expects long type
             
-            # original pretext task
-            if len(input) == 2: 
-                center, neighbor = input[0], input[1]
-                output = model(center, neighbor) 
+            # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
+            if input.shape[2] == 2: # original pretext task
+                center, neighbor = input[:,:,0,:,:,:], input[:,:,1,:,:,:]
+
+                # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+                # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+                shape = center.shape
+                center = center.view(-1, shape[2], shape[3], shape[4])
+                neighbor = neighbor.view(-1, shape[2], shape[3], shape[4])
+
+                output = model(center.to(device), neighbor.to(device)) 
                 loss = criterion(output, target) 
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
-                all_labels.extend(target.detach().cpu().numpy())
+                all_labels.append(target.detach().cpu().numpy())
+            else: # our pretext task
+                center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
 
-            # our pretext task
-            else:
-                center, neighbor1, neighbor2 = input[0], input[1], input[2]
-                output1, output2 = model(center, neighbor1, neighbor2)
+                # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
+                # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+                shape = center.shape
+                center = center.view(-1, shape[2], shape[3], shape[4])
+                neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
+                neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
+
+                output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
                 loss = criterion(output1, output2, target)
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
                 all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
-                all_labels.extend(target.detach().cpu().numpy())
-                all_labels.extend(target.detach().cpu().numpy())
+                all_labels.append(target.detach().cpu().numpy())
+                all_labels.append(target.detach().cpu().numpy())
 
             # record loss
             losses.update(loss.item(), center.size(0))
@@ -202,11 +240,11 @@ def validate(
             batch_time.update(time.time() - curr_time)
 
             # log after every `log_frequency` batches
-            if i % log_frequency == 0:
+            if i % log_frequency == 0 or i == len(val_loader)-1:
                 msg = 'Test: [{0}/{1}]\t' \
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
                       'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(
-                          i, len(val_loader), batch_time=batch_time,
+                          i, len(val_loader)-1, batch_time=batch_time,
                           loss=losses)
                 logger.info(msg)
 
@@ -218,9 +256,8 @@ def validate(
         logger.info('Accuracy: {:.3f}'.format(accuracy))
 
         # update TensorBoard
-        tb_writer.add_scalar('valid_loss', losses.avg, tb_dict['valid_global_steps'])
-        tb_writer.add_scalar('valid_acc', accuracy, tb_dict['valid_global_steps'])
-        tb_dict['valid_global_steps'] += 1
+        tb_writer.add_scalar('valid_loss', losses.val, epoch)
+        tb_writer.add_scalar('valid_acc', accuracy, epoch)
 
     return accuracy
 

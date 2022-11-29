@@ -112,7 +112,7 @@ def get_imagenet_info(
 
 
 def sample_img_paths(
-        imagenet_info: pd.DataFrame,
+        imagenet_info: pd.DataFrame = None,
         frac: float = .1,
     ) -> np.ndarray:
     """
@@ -128,7 +128,7 @@ def sample_img_paths(
     np.ndarray
         A numpy array of the sampled image paths.
     """
-    df = imagenet_info
+    df = imagenet_info if imagenet_info else get_imagenet_info()
 
     # Only consider RGB images with 3 channels
     df = df[df['n_channels'] == 3]
