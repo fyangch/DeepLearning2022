@@ -96,8 +96,17 @@ def get_imagenet_info(
     image_titles.sort()
     image_paths = [str(os.path.join(imagedir, image_title)) for image_title in image_titles]
 
-    # Create a Dataframe with the image titles and labels
-    merge_dict = {'images': image_paths, 'labels': labels}
+    # Gather filter out non-RGB images (grayscale and RGBA)
+    is_rgb = []
+    for image_path in image_paths:
+        img = torchvision.io.read_image(image_path)
+        if len(img.shape) < 3 or img.shape[0] != 3:
+            is_rgb.append(0)
+        else:
+            is_rgb.append(1)
+
+    # Create a Dataframe with the image titles, labels and validity of image format
+    merge_dict = {'images': image_paths, 'labels': labels, 'is_rgb': is_rgb}
     df = pd.DataFrame(merge_dict)
 
     # save imagenet info in data folder
@@ -114,8 +123,6 @@ def sample_img_paths(
     Helper function to sample the ILSVRC2012_img_val dataset in a stratified method.
     Parameters
     ----------
-    imagenet_info
-        Pandas DataFramed that has been calculated by the `get_imagenet_info` function.
     frac
         Fraction of (image title, label) pairs that are kept in the sampling process compared to the initial entire dataset.
     Returns
@@ -123,7 +130,10 @@ def sample_img_paths(
     np.ndarray
         A numpy array of the sampled image paths.
     """
-    df = imagenet_info if imagenet_info else get_imagenet_info()
+    df = get_imagenet_info()
+
+    # Only consider valid RGB images
+    df = df[df['is_rgb'] == 1]
 
     # Return a stratified sample of the dataset
     return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))['images'].values
