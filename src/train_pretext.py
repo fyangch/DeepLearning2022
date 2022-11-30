@@ -40,6 +40,7 @@ def train_model(
     optimizer: Optional[Optimizer]=None,
     start_epoch: int=0, # only relevant if you resume from a checkpoint
     num_epochs: int=20,
+    curr_best_acc: float=0.0, # only relevant if you resume from a checkpoint
     log_frequency: int=10,
     ) -> None:
     """ Training loop. """
@@ -51,7 +52,7 @@ def train_model(
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters())
 
-    best_acc = 0.0 # tracks the best accuracy so far
+    best_acc = curr_best_acc # tracks the best accuracy so far
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
         train(model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
@@ -67,7 +68,7 @@ def train_model(
 
         # update checkpoint
         logger.info(f"Saving checkpoint to ./out/{experiment_id}/")
-        save_checkpoint(experiment_id, epoch+1, model, optimizer)
+        save_checkpoint(experiment_id, epoch+1, best_acc, model, optimizer)
 
     # save final model
     logger.info(f"Saving final model to ./out/{experiment_id}/")

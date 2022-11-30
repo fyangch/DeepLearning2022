@@ -46,6 +46,7 @@ def create_logger_and_descr_file(experiment_id: str, experiment_descr: str) -> T
 def save_checkpoint(
     experiment_id: str, 
     next_epoch: int,
+    best_acc: float,
     model: nn.Module,
     optimizer: Optimizer,
     filename: str="checkpoint.pth.tar"
@@ -54,6 +55,7 @@ def save_checkpoint(
     # checkpoint states
     d = {
         "next_epoch": next_epoch,
+        "best_acc": best_acc,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
     }
