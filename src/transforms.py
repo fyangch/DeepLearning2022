@@ -1,6 +1,6 @@
 import torch
 from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
-    ColorJitter, RandomSolarize, CenterCrop, Resize, ToTensor, Normalize
+    ColorJitter, RandomSolarize, CenterCrop, Resize, Normalize
 
 
 class RandomColorDropping(torch.nn.Module):
@@ -92,7 +92,6 @@ class ColorProjection(torch.nn.Module):
             [1, -2, 1]
         ])
         B = torch.eye(3) - a / 6
-
         return torch.einsum("ij,jhw->ihw", B, img)
 
     def __repr__(self) -> str:
@@ -101,14 +100,12 @@ class ColorProjection(torch.nn.Module):
 
 # tiny-imagenet-200 raw image transform
 TINY_IMAGENET_RESIZE = Compose([
-    ToTensor(),
     Resize(224),
 ])
 
 # from https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html#load-data
 # ImageNet raw image transform
 IMAGENET_RESIZE = Compose([
-    ToTensor(),
     Resize(256),
     CenterCrop(224),
 ])

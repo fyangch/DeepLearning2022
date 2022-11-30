@@ -3,6 +3,7 @@ import os
 import cv2
 import PIL
 import skimage
+import torchvision.io
 from tqdm import tqdm
 
 import numpy as np
@@ -199,7 +200,7 @@ class OriginalPatchLocalizationDataset(Dataset):
     def __getitem__(self, idx: int):
         # load image from path
         img_path = self.img_paths[idx]
-        img = skimage.io.imread(img_path)
+        img = torchvision.io.read_image(img_path)/255
         # apply transform
         img = self.pre_transform(img)
         # get samples_per_image samples from img
