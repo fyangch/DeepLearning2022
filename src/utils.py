@@ -30,8 +30,11 @@ def create_logger_and_descr_file(experiment_id: str, experiment_descr: str) -> T
     logging.basicConfig(filename=str(log_fn), format="%(asctime)-15s %(message)s")
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    console = logging.StreamHandler()
-    logging.getLogger('').addHandler(console)
+    
+    # only add a stream handler if there isn't already one
+    if len(logger.handlers) == 1: # <-- file handler is the existing handler
+        console = logging.StreamHandler()
+        logger.addHandler(console)
 
     # set up TensorBoard writer
     tb_writer = SummaryWriter(os.path.join(experiment_dir, "tb"))

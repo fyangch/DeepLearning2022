@@ -18,7 +18,7 @@ We wrote almost all of the code ourselves from scratch. We thereby used [this re
 ## Setup:
 ### ImageNet Dataset:
 1. Create an account and log into the [ImageNet website](https://image-net.org/index.php).
-2. Download the following [samples](https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar) and [labels](https://image-net.org/data/ILSVRC/2012/ILSVRC2012_devkit_t12.tar.gz). Due to computational reasons, we use the ImageNet validation set as our dataset. Note: The labels are used to subsample the validation set with respect to the image classes such that we get a balanced dataset when working with smaller datasets.
+2. Download the following [samples](https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar) and [labels](https://image-net.org/data/ILSVRC/2012/ILSVRC2012_devkit_t12.tar.gz). Due to computational reasons, we use the ImageNet validation set as our dataset. Note: The labels are only used to get stratified subsets of the validation set with respect to the image classes such that we get a balanced dataset when experimenting with fewer samples.
 3. Unzip the samples and labels and put both folders into the `data` directory. All images should be located at `./data/ILSVRC2012_img_val/*.JPEG`.
 
 ### TODO: CIFAR-10 or CIFAR-100 instructions
