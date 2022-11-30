@@ -2,8 +2,6 @@ import os
 
 import cv2
 import PIL
-import skimage
-import torchvision.io
 from tqdm import tqdm
 
 import numpy as np
@@ -11,6 +9,8 @@ import pandas as pd
 
 import torch
 from torch.utils.data import Dataset
+import torchvision
+from torchvision.io import ImageReadMode
 import torchvision.transforms.functional as TF
 from torchvision.transforms import Compose, ToPILImage, RandomCrop, CenterCrop, Resize
 
@@ -47,13 +47,15 @@ def load_tiny_imagenet(
     if dataset_type == 'train':
         for foldername in tqdm(os.listdir(os.path.join(tiny_imagenet_folder, dataset_type))):
             for filename in os.listdir(os.path.join(tiny_imagenet_folder, dataset_type, foldername, "images")):
-                img = cv2.imread(os.path.join(tiny_imagenet_folder, dataset_type, foldername, "images", filename))
+                img_path = os.path.join(tiny_imagenet_folder, dataset_type, foldername, "images", filename)
+                img = torchvision.io.read_image(img_path, mode=ImageReadMode.RGB) / 255
                 if img is not None:
                     images.append(transform(img) if transform else img)
     else:
         # 'val' or 'test'
         for filename in tqdm(os.listdir(os.path.join(tiny_imagenet_folder, dataset_type, "images"))):
-            img = cv2.imread(os.path.join(tiny_imagenet_folder, dataset_type, "images", filename))
+            img_path = os.path.join(tiny_imagenet_folder, dataset_type, "images", filename)
+            img = torchvision.io.read_image(img_path, mode=ImageReadMode.RGB) / 255
             if img is not None:
                 images.append(transform(img) if transform else img)
 
@@ -64,6 +66,7 @@ def get_imagenet_info(
         labeldir: str = './data/ILSVRC2012_devkit_t12/data/ILSVRC2012_validation_ground_truth.txt',
         imagedir: str = './data/ILSVRC2012_img_val',
         savefile: str = './data/imagenet_info.csv',
+        recompute: bool = False,
     ) -> pd.DataFrame:
     """
     Helper function to get information (path, label, n_channels) about every image in the imagenet dataset.
@@ -82,7 +85,7 @@ def get_imagenet_info(
     """
 
     # check if imagenet_info already in data folder
-    if os.path.isfile(savefile):
+    if not recompute and os.path.isfile(savefile):
         return pd.read_csv(savefile, index_col=0)
 
     # Collect every class label for each image
@@ -93,17 +96,8 @@ def get_imagenet_info(
     image_titles.sort()
     image_paths = [str(os.path.join(imagedir, image_title)) for image_title in image_titles]
 
-    # Gather the number of channels for each image (to filter out grayscale images)
-    n_channels = []
-    for image_path in image_paths:
-        img = skimage.io.imread(image_path)
-        if len(img.shape) < 3:
-            n_channels.append(1)
-        else:
-            n_channels.append(img.shape[-1])
-
     # Create a Dataframe with the image titles and labels
-    merge_dict = {'images': image_paths, 'labels': labels, 'n_channels': n_channels}
+    merge_dict = {'images': image_paths, 'labels': labels}
     df = pd.DataFrame(merge_dict)
 
     # save imagenet info in data folder
@@ -130,9 +124,6 @@ def sample_img_paths(
         A numpy array of the sampled image paths.
     """
     df = imagenet_info if imagenet_info else get_imagenet_info()
-
-    # Only consider RGB images with 3 channels
-    df = df[df['n_channels'] == 3]
 
     # Return a stratified sample of the dataset
     return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))['images'].values
@@ -200,7 +191,7 @@ class OriginalPatchLocalizationDataset(Dataset):
     def __getitem__(self, idx: int):
         # load image from path
         img_path = self.img_paths[idx]
-        img = torchvision.io.read_image(img_path)/255
+        img = torchvision.io.read_image(img_path, mode=ImageReadMode.RGB)/255
         # apply transform
         img = self.pre_transform(img)
         # get samples_per_image samples from img
