@@ -104,20 +104,10 @@ class OriginalPretextNetwork(nn.Module):
         return output
 
 
-class OurPretextNetwork(nn.Module):
+# 3 patch version
+class OurPretextNetwork(OriginalPretextNetwork):
     def __init__(self, backbone: str="alexnet"):
-        super(OurPretextNetwork, self).__init__()
-        self.encoder, embedding_dim = get_encoder(backbone)            
-        self.fc = nn.Sequential(
-            nn.Linear(2*embedding_dim, 4096),
-            # nn.ReLU(inplace=True), 
-            # nn.Linear(4096, 4096),
-            nn.ReLU(inplace=True), 
-            nn.Linear(4096, 8)
-        )
-
-    def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
-        return self.encoder(x)
+        super(OurPretextNetwork, self).__init__(backbone=backbone)
 
     def forward(self, 
         center: torch.Tensor, 
@@ -133,6 +123,33 @@ class OurPretextNetwork(nn.Module):
         # pretext task
         output1 = torch.cat((center, neighbor1), 1)
         output2 = torch.cat((center, neighbor2), 1)
+        output1 = self.fc(output1)
+        output2 = self.fc(output2)
+        
+        return output1, output2
+
+
+# 4 patch version
+class OurPretextNetworkv2(OriginalPretextNetwork):
+    def __init__(self, backbone: str="alexnet"):
+        super(OurPretextNetwork, self).__init__(backbone=backbone)
+
+    def forward(self, 
+        center1: torch.Tensor, 
+        center2: torch.Tensor, 
+        neighbor1: torch.Tensor, 
+        neighbor2: torch.Tensor,
+        ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        # embeddings
+        center1 = self.get_embedding(center1)
+        center2 = self.get_embedding(center2)
+        neighbor1 = self.get_embedding(neighbor1)
+        neighbor2 = self.get_embedding(neighbor2)
+
+        # pretext task
+        output1 = torch.cat((center1, neighbor1), 1)
+        output2 = torch.cat((center2, neighbor2), 1)
         output1 = self.fc(output1)
         output2 = self.fc(output2)
         
