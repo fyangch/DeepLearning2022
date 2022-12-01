@@ -1,6 +1,7 @@
 import os
 import logging
 import time
+import csv
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
@@ -40,6 +41,22 @@ def create_logger_and_descr_file(experiment_id: str, experiment_descr: str) -> T
     tb_writer = SummaryWriter(os.path.join(experiment_dir, "tb"))
 
     return logger, tb_writer
+
+
+def save_plotting_data(experiment_id: str, metric: str, epoch: int, metric_val: float):
+    """ Save metrics after each epoch in a CSV file (to create plots for our report later). """
+    fn = os.path.join("out", experiment_id, f"{metric}.csv")
+
+    # define header if file does not exist yet
+    if not os.path.isfile(fn):
+        with open(fn, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["epoch", metric])
+
+    # append new data row
+    with open(fn, 'a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([epoch, metric_val])
 
 
 # More details: https://pytorch.org/tutorials/recipes/recipes/saving_and_loading_a_general_checkpoint.html 

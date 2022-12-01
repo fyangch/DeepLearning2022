@@ -13,7 +13,7 @@ import logging
 
 from typing import Optional
 
-from src.utils import create_logger_and_descr_file, save_checkpoint, save_model
+from src.utils import create_logger_and_descr_file, save_plotting_data, save_checkpoint, save_model
 
 
 # fix random seeds for reproducibility
@@ -55,10 +55,10 @@ def train_model(
     best_acc = curr_best_acc # tracks the best accuracy so far
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
-        train(model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
+        train(experiment_id, model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
 
         # evaluate on validation set
-        acc = validate(model, val_loader, device, criterion, epoch, logger, tb_writer, log_frequency)
+        acc = validate(experiment_id, model, val_loader, device, criterion, epoch, logger, tb_writer, log_frequency)
 
         # save best model so far
         if acc > best_acc:
@@ -79,6 +79,7 @@ def train_model(
     
 
 def train(
+    experiment_id: str,
     model: nn.Module,
     train_loader: DataLoader,
     device: str,
@@ -168,8 +169,12 @@ def train(
     # update TensorBoard after each epoch
     tb_writer.add_scalar('train_loss', losses.val, epoch)
 
+    # save plotting data for later use
+    save_plotting_data(experiment_id, "train_loss", epoch, losses.val)
+
 
 def validate(
+    experiment_id: str,
     model: nn.Module,
     val_loader: DataLoader,
     device: str,
@@ -259,6 +264,10 @@ def validate(
         # update TensorBoard
         tb_writer.add_scalar('valid_loss', losses.val, epoch)
         tb_writer.add_scalar('valid_acc', accuracy, epoch)
+
+        # save plotting data for later use
+        save_plotting_data(experiment_id, "valid_loss", epoch, losses.val)
+        save_plotting_data(experiment_id, "valid_acc", epoch, accuracy)
 
     return accuracy
 
