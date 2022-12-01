@@ -1,9 +1,5 @@
 import os
 
-import cv2
-import PIL
-from tqdm import tqdm
-
 import numpy as np
 import pandas as pd
 
@@ -12,7 +8,7 @@ from torch.utils.data import Dataset
 import torchvision
 from torchvision.io import ImageReadMode
 import torchvision.transforms.functional as TF
-from torchvision.transforms import Compose, ToPILImage, RandomCrop, CenterCrop, Resize
+from torchvision.transforms import Compose, RandomCrop, CenterCrop, Resize
 
 from typing import List, Tuple
 
@@ -20,52 +16,9 @@ from typing import List, Tuple
 from src.transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST
 
 
-def load_tiny_imagenet(
-        tiny_imagenet_folder: str,
-        dataset_type: str = 'train',
-        transform=ToPILImage()
-) -> List[PIL.Image.Image]:
-    """
-    Helper function to load tiny-imagenet-200 dataset.
-
-    Parameters
-    ----------
-    tiny_imagenet_folder
-        Path to the 'tiny-imagenet-200' folder.
-    dataset_type
-        One of 'train', 'val', 'test' specifying which dataset to load.
-    transform
-        A torchvision transform that will be applied to every loaded image.
-
-    Returns
-    -------
-    List[PIL.Image.Image]
-        A list of the loaded PIL images.
-    """
-
-    images = []
-    if dataset_type == 'train':
-        for foldername in tqdm(os.listdir(os.path.join(tiny_imagenet_folder, dataset_type))):
-            for filename in os.listdir(os.path.join(tiny_imagenet_folder, dataset_type, foldername, "images")):
-                img_path = os.path.join(tiny_imagenet_folder, dataset_type, foldername, "images", filename)
-                img = torchvision.io.read_image(img_path, mode=ImageReadMode.RGB) / 255
-                if img is not None:
-                    images.append(transform(img) if transform else img)
-    else:
-        # 'val' or 'test'
-        for filename in tqdm(os.listdir(os.path.join(tiny_imagenet_folder, dataset_type, "images"))):
-            img_path = os.path.join(tiny_imagenet_folder, dataset_type, "images", filename)
-            img = torchvision.io.read_image(img_path, mode=ImageReadMode.RGB) / 255
-            if img is not None:
-                images.append(transform(img) if transform else img)
-
-    return images
-
-
 def get_imagenet_info(
-        labeldir: str = './data/ILSVRC2012_devkit_t12/data/ILSVRC2012_validation_ground_truth.txt',
-        imagedir: str = './data/ILSVRC2012_img_val',
-        savefile: str = './data/imagenet_info.csv',
+        data_dir: str = "data",
+        savefile: str = os.path.join("data", "imagenet_info.csv"),
         recompute: bool = False,
     ) -> pd.DataFrame:
     """
@@ -73,10 +26,14 @@ def get_imagenet_info(
 
     Parameters
     ----------
-    labeldir
-        Path to the 'ILSVRC2012_validation_ground_truth.txt' file.
-    imagedir
-        Path to the 'ILSVRC2012_img_val' folder.
+    data_dir
+        Path to the 'data' directory. The 'data' directory should contain the following two directories:
+        - 'ILSVRC2012_img_val': Containing the validation set images from the 2012 ILSVRC
+        - 'ILSVRC2012_devkit_t12': Containing the developer kit from the 2012 ILSVRC
+    savefile
+        Path to where the imagenet_info pandas DataFrame should be loaded from and saved to.
+    recompute
+        Boolean indicating whether the imagenet_info should be recomputed even if it already exists.
 
     Returns
     -------
@@ -84,17 +41,21 @@ def get_imagenet_info(
         A pandas DataFrame containing the imagenet information.
     """
 
+    # get image directory and path to labels
+    image_dir = os.path.join(data_dir, "ILSVRC2012_img_val")
+    label_path = os.path.join(data_dir, "ILSVRC2012_devkit_t12", "data", "ILSVRC2012_validation_ground_truth.txt")
+
     # check if imagenet_info already in data folder
     if not recompute and os.path.isfile(savefile):
         return pd.read_csv(savefile, index_col=0)
 
     # Collect every class label for each image
-    labels = pd.read_csv(labeldir, header=None).values.flatten()
+    labels = pd.read_csv(label_path, header=None).values.flatten()
 
     # Gather all image titles
-    image_titles = os.listdir(imagedir)
+    image_titles = os.listdir(image_dir)
     image_titles.sort()
-    image_paths = [str(os.path.join(imagedir, image_title)) for image_title in image_titles]
+    image_paths = [str(os.path.join(image_dir, image_title)) for image_title in image_titles]
 
     # Gather filter out non-RGB images (grayscale and RGBA)
     is_rgb = []
@@ -116,7 +77,6 @@ def get_imagenet_info(
 
 
 def sample_img_paths(
-        imagenet_info: pd.DataFrame = None,
         frac: float = .1,
     ) -> np.ndarray:
     """

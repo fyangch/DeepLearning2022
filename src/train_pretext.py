@@ -28,20 +28,14 @@ np.random.seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)"""
 
 
-def get_patches(input: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
-    """ Select the individual patches from the input tensor and reshape them into the correct shape. """
-    patches = []
-    for i in range(num_patches):
-        # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
-        patch = input[:,:,i,:,:,:]
+def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
+    """ Select the individual patches from the features of a single batch and reshape them into the correct shape. """
 
-        # reshape patch shape from [batch_size, samples_per_image, n_channels, img_height, img_width]
-        # to [batch_size * samples_per_image, n_channels, img_height, img_width]
-        patch = patch.view(-1, patch.shape[2], patch.shape[3], patch.shape[4])
+    # batch_features have shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
+    patch_imgs = batch_features.view(-1, *batch_features.shape[-3:])
 
-        patches.append(patch)
-    
-    return patches
+    # for each patch get every num_patches-th image
+    return [patch_imgs[i::num_patches] for i in range(num_patches)]
 
 
 # More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
