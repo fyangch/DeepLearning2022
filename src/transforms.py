@@ -72,6 +72,13 @@ class ColorProjection(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
+        # define projection matrix
+        a = torch.Tensor([
+            [1, -2, 1],
+            [-2, 4, -2],
+            [1, -2, 1]
+        ])
+        self.B = torch.eye(3) - a / 6
 
     def forward(self, img: torch.Tensor) -> torch.Tensor:
         """
@@ -85,14 +92,7 @@ class ColorProjection(torch.nn.Module):
         torch.Tensor
             Image with colors projected onto the green-magenta color axis.
         """
-
-        a = torch.Tensor([
-            [1, -2, 1],
-            [-2, 4, -2],
-            [1, -2, 1]
-        ])
-        B = torch.eye(3) - a / 6
-        return torch.einsum("ij,jhw->ihw", B, img)
+        return torch.einsum("ij,jhw->ihw", self.B, img)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
@@ -119,15 +119,15 @@ IMAGENET_NORMALIZATION_PARAMS = {
 # patch localization on imagenet post transform: 1. drop color channels (chromatic aberration) 2. normalize image
 PATCH_LOCALIZATION_POST = Compose([
     ColorProjection(),
-    Normalize(**IMAGENET_NORMALIZATION_PARAMS)
+    Normalize(**IMAGENET_NORMALIZATION_PARAMS),
 ])
 
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
-    RandomResizedCrop(size=224, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333)),
-    #RandomHorizontalFlip(p=0.5),
+    # RandomResizedCrop(size=224, scale=(0.08, 1.0), ratio=(0.75, 1.3333333333333333)),
+    # RandomHorizontalFlip(p=0.5),
     ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    RandomGrayscale(p=0.5),
+    RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(0.1, 0.2)),
     RandomSolarize(0.5, p=0.5),
 ])
