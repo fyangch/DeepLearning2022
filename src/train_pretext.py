@@ -129,9 +129,9 @@ def train(
             loss = criterion(output, target)
             # import matplotlib.pyplot as plt
             # print(f"label: {target.cpu()[0]}") 
-            # plt.imshow(center[0].permute(1, 2, 0))
+            # plt.imshow(center[0].cpu().permute(1, 2, 0))
             # plt.show()
-            # plt.imshow(neighbor[0].permute(1, 2, 0))
+            # plt.imshow(neighbor[0].cpu().permute(1, 2, 0))
             # plt.show()
         elif input.shape[2] == 3: # our pretext task with 3 patches
             center, neighbor1, neighbor2 = get_patches(input, 3)
