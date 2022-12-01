@@ -11,7 +11,7 @@ import os
 import time
 import logging
 
-from typing import Optional
+from typing import Optional, List
 
 from src.utils import create_logger_and_descr_file, save_plotting_data, save_checkpoint, save_model
 
@@ -26,6 +26,22 @@ if torch.cuda.is_available():
 
 np.random.seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)"""
+
+
+def get_patches(input: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
+    """ Select the individual patches from the input tensor and reshape them into the correct shape. """
+    patches = []
+    for i in range(num_patches):
+        # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
+        patch = input[:,:,i,:,:,:]
+
+        # reshape patch shape from [batch_size, samples_per_image, n_channels, img_height, img_width]
+        # to [batch_size * samples_per_image, n_channels, img_height, img_width]
+        patch = patch.view(-1, patch.shape[2], patch.shape[3], patch.shape[4])
+
+        patches.append(patch)
+    
+    return patches
 
 
 # More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
@@ -94,7 +110,6 @@ def train(
 
     # keep track of batch processing time, data loading time and losses
     batch_time = AverageMeter()
-    data_time = AverageMeter()
     losses = AverageMeter()
 
     # switch to training mode
@@ -105,42 +120,26 @@ def train(
 
         # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
         target = target.view(-1).long().to(device) # cross entropy loss function expects long type
+        input = input.to(device)
 
         # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
         if input.shape[2] == 2: # original pretext task
-            center, neighbor = input[:,:,0,:,:,:], input[:,:,1,:,:,:]
-
-            # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
-            # to [batch_size * samples_per_image, n_channels, img_height, img_width]
-            shape = center.shape
-            center = center.view(-1, shape[2], shape[3], shape[4])
-            neighbor = neighbor.view(-1, shape[2], shape[3], shape[4])
-
+            center, neighbor = get_patches(input, 2)
+            output = model(center, neighbor) 
+            loss = criterion(output, target)
             # import matplotlib.pyplot as plt
+            # print(f"label: {target.cpu()[0]}") 
             # plt.imshow(center[0].permute(1, 2, 0))
             # plt.show()
             # plt.imshow(neighbor[0].permute(1, 2, 0))
             # plt.show()
-            # print(f"label: {target.cpu()[0]}")
-            
-
-            data_time.update(time.time() - curr_time) # record data loading time
-
-            output = model(center.to(device), neighbor.to(device)) 
-            loss = criterion(output, target) 
-        else: # our pretext task
-            center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
-
-            # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
-            # to [batch_size * samples_per_image, n_channels, img_height, img_width]
-            shape = center.shape
-            center = center.view(-1, shape[2], shape[3], shape[4])
-            neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
-            neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
-
-            data_time.update(time.time() - curr_time) # record data loading time
-
-            output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
+        elif input.shape[2] == 3: # our pretext task with 3 patches
+            center, neighbor1, neighbor2 = get_patches(input, 3)
+            output1, output2 = model(center, neighbor1, neighbor2)
+            loss = criterion(output1, output2, target)
+        else: # our pretext task with 4 patches
+            center1, center2, neighbor1, neighbor2 = get_patches(input, 4)
+            output1, output2 = model(center1, center2, neighbor1, neighbor2)
             loss = criterion(output1, output2, target)
 
         # compute gradient and do update step
@@ -148,10 +147,8 @@ def train(
         loss.backward()
         optimizer.step()
 
-        # record loss
+        # record loss and batch processing time
         losses.update(loss.item(), center.size(0))
-
-        # record batch processing time
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
@@ -159,11 +156,10 @@ def train(
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
-                  'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
                       epoch, i, len(train_loader)-1, batch_time=batch_time,
                       speed=input.size(0)*input.size(1)/batch_time.val,
-                      data_time=data_time, loss=losses)
+                      loss=losses)
             logger.info(msg)
             
     # update TensorBoard after each epoch
@@ -203,46 +199,35 @@ def validate(
 
             # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
             target = target.view(-1).long().to(device) # cross entropy loss function expects long type
+            input = input.to(device)
             
             # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
             if input.shape[2] == 2: # original pretext task
-                center, neighbor = input[:,:,0,:,:,:], input[:,:,1,:,:,:]
-
-                # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
-                # to [batch_size * samples_per_image, n_channels, img_height, img_width]
-                shape = center.shape
-                center = center.view(-1, shape[2], shape[3], shape[4])
-                neighbor = neighbor.view(-1, shape[2], shape[3], shape[4])
-
-                output = model(center.to(device), neighbor.to(device)) 
+                center, neighbor = get_patches(input, 2)
+                output = model(center, neighbor) 
                 loss = criterion(output, target) 
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
                 all_labels.append(target.detach().cpu().numpy())
-            else: # our pretext task
-                center, neighbor1, neighbor2 = input[:,:,0,:,:,:], input[:,:,1,:,:,:], input[:,:,2,:,:,:]
+            else: # our pretext tasks
+                if input.shape[2] == 3: # our pretext task with 3 patches
+                    center, neighbor1, neighbor2 = get_patches(input, 3)
+                    output1, output2 = model(center, neighbor1, neighbor2)
+                    loss = criterion(output1, output2, target)
+                else: # our pretext task with 4 patches
+                    center1, center2, neighbor1, neighbor2 = get_patches(input, 4)
+                    output1, output2 = model(center1, center2, neighbor1, neighbor2)
+                    loss = criterion(output1, output2, target)
 
-                # reshape patch shapes from [batch_size, samples_per_image, n_channels, img_height, img_width]
-                # to [batch_size * samples_per_image, n_channels, img_height, img_width]
-                shape = center.shape
-                center = center.view(-1, shape[2], shape[3], shape[4])
-                neighbor1 = neighbor1.view(-1, shape[2], shape[3], shape[4])
-                neighbor2 = neighbor2.view(-1, shape[2], shape[3], shape[4])
-
-                output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
-                loss = criterion(output1, output2, target)
-
-                # update list of labels and predictions for computation of accuracy
+                # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
                 all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
                 all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
                 all_labels.append(target.detach().cpu().numpy())
                 all_labels.append(target.detach().cpu().numpy())
 
-            # record loss
+            # record loss and batch processing time
             losses.update(loss.item(), center.size(0))
-
-            # record batch processing time
             batch_time.update(time.time() - curr_time)
 
             # log after every `log_frequency` batches
