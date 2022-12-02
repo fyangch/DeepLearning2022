@@ -4,24 +4,12 @@ from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 
 import numpy as np
-import random
-import os
 import time
 import logging
 
 from typing import Optional, List
 
-from src.utils import create_logger, save_plotting_data, save_checkpoint, save_model
-
-
-def fix_all_seeds(seed: int) -> None:
-    """ Fix all the different seeds for reproducibility. """
-    random.seed(seed)
-    np.random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)    
+from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
 def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
@@ -34,18 +22,16 @@ def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Te
     return [patch_imgs[i::num_patches] for i in range(num_patches)]
 
 
-# More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 def train_model(
-    experiment_id: str, # e.g. "our_pretext_12"
+    experiment_id: str, # e.g. "our_pretext_42"
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
     device: str,
     criterion: nn.Module,
     optimizer: Optional[Optimizer]=None,
-    start_epoch: int=0, # only relevant if you resume from a checkpoint
     num_epochs: int=20,
-    curr_best_acc: float=0.0, # only relevant if you resume from a checkpoint
+    resume_from_checkpoint: bool=False,
     log_frequency: int=10,
     fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
     seed: int=42,
@@ -54,14 +40,23 @@ def train_model(
     if fix_seed:
         fix_all_seeds(seed=seed)
 
-    # Create text logger and TensorBoard writer
+    # Create logger with file and console stream handlers
     logger = create_logger(experiment_id)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters())
 
-    best_acc = curr_best_acc # tracks the best accuracy so far
+    # resume from latest checkpoint if required
+    start_epoch = 0
+    best_acc = 0.0
+    if resume_from_checkpoint:
+        model, optimizer, start_epoch, best_acc = load_checkpoint(experiment_id, model, optimizer)
+    
+    # move model and criterion to GPU if available
+    model.to(device)
+    criterion.to(device)
+
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
         train(experiment_id, model, train_loader, device, criterion, optimizer, epoch, logger, log_frequency)
