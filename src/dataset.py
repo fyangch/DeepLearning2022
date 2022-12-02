@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 import torch
+from torch import nn
 from torch.utils.data import Dataset
 import torchvision
 from torchvision.io import ImageReadMode
@@ -151,12 +152,12 @@ def extract_patches(image: torch.Tensor, label: int) -> Tuple[torch.Tensor, torc
     label = label if label < 4 else label + 1
     neighbor_row, neighbor_col = label // 3, label % 3
 
-    # 1. center crop (ensure gap) 2. random crop (random jitter) 3. resize (to ensure image_size stays the same)
-    outer_patch = RANDOM_JITTER_CROP(
-        TF.crop(image, neighbor_row * GRID_SIZE, neighbor_col * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+    # 1. crop center and neighbor patch with gaps and random jitter
     center_patch = RANDOM_JITTER_CROP(TF.crop(image, 1 * GRID_SIZE, 1 * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+    neighbor_patch = RANDOM_JITTER_CROP(
+        TF.crop(image, neighbor_row * GRID_SIZE, neighbor_col * GRID_SIZE, GRID_SIZE, GRID_SIZE))
 
-    return center_patch, outer_patch
+    return center_patch, neighbor_patch
 
 
 class OriginalPatchLocalizationDataset(Dataset):
@@ -168,7 +169,9 @@ class OriginalPatchLocalizationDataset(Dataset):
     def __init__(
             self,
             image_paths: List[str],
-            pre_transform=None,
+            pre_transform: nn.Module = None,
+            post_transform: nn.Module = None,
+            cache_images: bool = False,
     ):
         """
         Parameters
@@ -176,60 +179,84 @@ class OriginalPatchLocalizationDataset(Dataset):
         image_paths
             A list of image paths returned by the sample_image_paths function.
         pre_transform
-            A torchvision transform that will be applied to every raw image.
+            A torchvision transform that will be applied BEFORE caching the image.
+        post_transform
+            A torchvision transform that will be applied AFTER converting an image into a sample.
+        cache_images
+            Whether to cache the resized images after loading them for the first time or to reload them every time.
+            Aims to reduce latency of reloading images at cost of more memory usage.
         """
         self.image_paths = image_paths
-        self.pre_transform = pre_transform if pre_transform else Compose([IMAGENET_RESIZE, PATCH_LOCALIZATION_POST])
+        self.pre_transform = pre_transform if pre_transform else IMAGENET_RESIZE
+        self.post_transform = post_transform if post_transform else PATCH_LOCALIZATION_POST
+        self.cache_images = cache_images
+        self.image_cache = {}
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, idx: int):
-        # load image from path
-        image_path = self.image_paths[idx]
-        image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB) / 255
-        # apply transform
-        image = self.pre_transform(image)
-        # get samples_per_image samples from image
-        samples = self.image_to_sample(image)
 
-        return samples
+        # check whether caching is activated and idx is in cache
+        if self.cache_images and idx in self.image_cache:
+            # load from cache and convert to float
+            image = self.image_cache[idx] / 255
+        else:
+            # load image from path
+            image_path = self.image_paths[idx]
+            image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
+            # resize image
+            image = self.pre_transform(image)
 
-    def image_to_sample(self, image: torch.Tensor) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
+            if self.cache_images:
+                # if caching is activated, save uint8 image in cache
+                self.image_cache[idx] = image
+
+            # convert image to float
+            image = image / 255
+
+        # randomly select a label (between 0 and 7)
+        label = torch.randint(7, (1,))
+        # extract center patch and neighbor patch corresponding to label
+        center_patch, neighbor_patch = extract_patches(image, label.item())
+        # convert patches
+        features = self.convert_patches(center_patch, neighbor_patch)
+        # apply post transform to each patch
+        features = [self.post_transform(patch) for patch in features]
+
+        return features, label
+
+    def convert_patches(self, center_patch: torch.Tensor, neighbor_patch: torch.Tensor) -> List[torch.Tensor]:
         """
         Parameters
         ----------
-        image
-            An image in torch.Tensor format.
+        center_patch
+            A center patch in torch.Tensor format.
+        neighbor_patch
+            A neighbor patch in torch.Tensor format.
 
         Returns
         -------
-        Tuple[torch.Tensor, torch.Tensor]
-            features, labels tuple
-            features: torch.Tensor of shape (samples_per_image, 2, *image.size())
-            labels: torch.Tensor of shape (samples_per_image) containing the corresponding labels (integers between 0 and 7)
+        List[torch.Tensor]
+            features: List with the 2 patches (center, neighbor) with shape [3, 224, 224]
         """
-        # randomly select a label (between 0 and 7)
-        label = torch.randint(7, (1,))
 
-        # extract center patch and neighbor patch corresponding to label
-        center_patch, neighbor_patch = extract_patches(image, label.item())
-
-        return (center_patch, neighbor_patch), label
+        return [center_patch, neighbor_patch]
 
 
 class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
     """
     Dataset implementing our modified Patch Localization method
-    A sample is made up of the 8 possible tasks for a given grid ((center, random_aug(neighbor), random_aug(neighbor)), labels)
+    A sample is made up of the 8 possible tasks for a given grid ((center, A1(neighbor), A2(neighbor)), labels)
     """
 
     def __init__(
             self,
             image_paths: List[str],
-            pre_transform=None,
-            aug_transform=None,
-            post_transform=None,
+            pre_transform: nn.Module = None,
+            aug_transform: nn.Module = None,
+            post_transform: nn.Module = None,
+            cache_images: bool = False,
     ):
         """
         Parameters
@@ -240,41 +267,34 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
             A torchvision transform that is applied to every raw image BEFORE the augmentation.
         aug_transform
             Random style augmentation transform that is separately applied twice to the outer patch.
-        pre_transform
+        post_transform
             A torchvision transform that is applied to every augmented image AFTER the augmentation.
+        cache_images
+            Whether to cache the resized images after loading them for the first time or to reload them every time.
+            Aims to reduce latency of reloading images at cost of more memory usage.
         """
         super(OurPatchLocalizationDataset, self).__init__(
             image_paths=image_paths,
-            pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE
+            pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
+            post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
+            cache_images=cache_images,
         )
 
         self.aug_transform = aug_transform if aug_transform else RELIC_AUG_TRANSFORM
-        self.post_transform = post_transform if post_transform else PATCH_LOCALIZATION_POST
 
-    def image_to_sample(self, image: torch.Tensor) -> Tuple[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]:
+    def convert_patches(self, center_patch: torch.Tensor, neighbor_patch: torch.Tensor) -> List[torch.Tensor]:
         """
         Parameters
         ----------
-        image
-            An image in torch.Tensor format.
+        center_patch
+            A center patch in torch.Tensor format.
+        neighbor_patch
+            A neighbor patch in torch.Tensor format.
 
         Returns
         -------
-        Tuple[torch.Tensor, torch.Tensor]
-            features, labels tuple
-            features: torch.Tensor of shape (samples_per_image, 3, *image.size())
-            labels: torch.Tensor of shape (samples_per_image) containing the corresponding labels (integers between 0 and 7)
+        List[torch.Tensor]
+            features: List with the 3 patches (center, A1(neighbor), A2(neighbor)) with shape [3, 224, 224]
         """
-        # randomly select a label (between 0 and 7)
-        label = torch.randint(7, (1,))
 
-        # extract center patch and neighbor patch corresponding to label
-        center_patch, neighbor_patch = extract_patches(image, label.item())
-
-        features = (
-            self.post_transform(center_patch),
-            self.post_transform(self.aug_transform(neighbor_patch)),
-            self.post_transform(self.aug_transform(neighbor_patch)),
-        )
-
-        return features, label
+        return [center_patch, self.aug_transform(neighbor_patch), self.aug_transform(neighbor_patch)]
