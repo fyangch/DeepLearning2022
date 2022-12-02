@@ -1,6 +1,6 @@
 import torch
 from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
-    ColorJitter, RandomSolarize, CenterCrop, Resize, Normalize
+    ColorJitter, RandomSolarize, CenterCrop, Resize, Normalize, RandomCrop
 
 
 class RandomColorDropping(torch.nn.Module):
@@ -98,6 +98,11 @@ class ColorProjection(torch.nn.Module):
         return f"{self.__class__.__name__}()"
 
 
+# hardcode image input size 224x224
+INPUT_SIZE = 224
+GRID_SIZE = INPUT_SIZE // 3
+PATCH_SIZE = INPUT_SIZE // 4
+
 # tiny-imagenet-200 raw image transform
 TINY_IMAGENET_RESIZE = Compose([
     Resize(224),
@@ -130,4 +135,11 @@ RELIC_AUG_TRANSFORM = Compose([
     RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(0.1, 0.2)),
     RandomSolarize(0.5, p=0.5),
+])
+
+# randomly crop a patch from a grid field with a PATCH_SIZE//4 gap
+RANDOM_JITTER_CROP = Compose([
+    CenterCrop(GRID_SIZE - PATCH_SIZE // 4),
+    RandomCrop(PATCH_SIZE),
+    Resize(INPUT_SIZE),
 ])
