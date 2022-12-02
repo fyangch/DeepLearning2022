@@ -1,31 +1,15 @@
-# Code adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 from torch.optim import Optimizer
-from tensorboardX import SummaryWriter
 
 import numpy as np
-import random
-import os
 import time
 import logging
 
 from typing import Optional, List
 
-from src.utils import create_logger_and_descr_file, save_plotting_data, save_checkpoint, save_model
-
-
-# fix random seeds for reproducibility
-# UNCOMMENT THIS BEFORE THE FINAL SUBMISSION!!!
-"""seed = 42
-random.seed(seed)
-torch.manual_seed(seed)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(seed)
-
-np.random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)"""
+from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
 def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
@@ -38,54 +22,68 @@ def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Te
     return [patch_imgs[i::num_patches] for i in range(num_patches)]
 
 
-# More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 def train_model(
-    experiment_id: str, # e.g. "our_pretext_12"
-    experiment_descr: str,
+    experiment_id: str, # e.g. "our_pretext_42"
     model: nn.Module,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
+    ds_train: Dataset,
+    ds_val: Dataset,
     device: str,
     criterion: nn.Module,
     optimizer: Optional[Optimizer]=None,
-    start_epoch: int=0, # only relevant if you resume from a checkpoint
-    num_epochs: int=20,
-    curr_best_acc: float=0.0, # only relevant if you resume from a checkpoint
+    num_epochs: int=100,
+    batch_size: int=64,
+    num_workers: int=4,
+    resume_from_checkpoint: bool=False,
     log_frequency: int=10,
+    fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
+    seed: int=42,
     ) -> None:
     """ Training loop. """
+    if fix_seed:
+        fix_all_seeds(seed=seed)
 
-    # Create text logger and TensorBoard writer
-    logger, tb_writer = create_logger_and_descr_file(experiment_id, experiment_descr)
+    # create logger with file and console stream handlers
+    logger = create_logger(experiment_id)
+
+    # create data loaders
+    train_loader = DataLoader(ds_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_loader = DataLoader(ds_val, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters())
 
-    best_acc = curr_best_acc # tracks the best accuracy so far
+    # move model and criterion to GPU if available
+    model = model.to(device)
+    criterion = criterion.to(device)
+
+    # resume from latest checkpoint if required
+    start_epoch = 0
+    best_acc = 0.0
+    if resume_from_checkpoint:
+        logger.info(f"Loading checkpoint from ./out/{experiment_id}/checkpoint.pth.tar")
+        model, optimizer, start_epoch, best_acc = load_checkpoint(experiment_id, model, optimizer)
+
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
-        train(experiment_id, model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
+        train(experiment_id, model, train_loader, device, criterion, optimizer, epoch, logger, log_frequency)
 
         # evaluate on validation set
-        acc = validate(experiment_id, model, val_loader, device, criterion, epoch, logger, tb_writer, log_frequency)
+        acc = validate(experiment_id, model, val_loader, device, criterion, epoch, logger, log_frequency)
 
         # save best model so far
         if acc > best_acc:
             best_acc = acc
-            logger.info(f"Saving best model to ./out/{experiment_id}/")
+            logger.info(f"Saving best model to ./out/{experiment_id}/best_model.pth.tar")
             save_model(model, experiment_id, "best_model.pth.tar")
 
         # update checkpoint
-        logger.info(f"Saving checkpoint to ./out/{experiment_id}/")
+        logger.info(f"Saving checkpoint to ./out/{experiment_id}/checkpoint.pth.tar")
         save_checkpoint(experiment_id, epoch+1, best_acc, model, optimizer)
 
     # save final model
-    logger.info(f"Saving final model to ./out/{experiment_id}/")
+    logger.info(f"Saving final model to ./out/{experiment_id}/final_model.pth.tar")
     save_model(model, experiment_id, "final_model.pth.tar")
-
-    # close TensorBoard writer
-    tb_writer.close()
     
 
 def train(
@@ -97,7 +95,6 @@ def train(
     optimizer: Optimizer,
     epoch: int,
     logger: logging.Logger,
-    tb_writer: SummaryWriter,
     log_frequency: int,
     ) -> None:
     """ Train the model for one epoch. """
@@ -155,9 +152,6 @@ def train(
                       speed=input.size(0)*input.size(1)/batch_time.val,
                       loss=losses)
             logger.info(msg)
-            
-    # update TensorBoard after each epoch
-    tb_writer.add_scalar('train_loss', losses.val, epoch)
 
     # save plotting data for later use
     save_plotting_data(experiment_id, "train_loss", epoch, losses.val)
@@ -171,7 +165,6 @@ def validate(
     criterion: nn.Module,
     epoch: int,
     logger: logging.Logger,
-    tb_writer: SummaryWriter,
     log_frequency: int,
     ) -> float:
     """ Validate the model using the validation set and return the accuracy. """
@@ -240,10 +233,6 @@ def validate(
 
         logger.info('Accuracy: {:.3f}'.format(accuracy))
 
-        # update TensorBoard
-        tb_writer.add_scalar('valid_loss', losses.val, epoch)
-        tb_writer.add_scalar('valid_acc', accuracy, epoch)
-
         # save plotting data for later use
         save_plotting_data(experiment_id, "valid_loss", epoch, losses.val)
         save_plotting_data(experiment_id, "valid_acc", epoch, accuracy)
@@ -251,6 +240,7 @@ def validate(
     return accuracy
 
 
+# adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 class AverageMeter(object):
     """ Computes and stores the average and current value. """
     def __init__(self):

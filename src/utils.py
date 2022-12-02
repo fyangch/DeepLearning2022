@@ -2,26 +2,31 @@ import os
 import logging
 import time
 import csv
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
 
-from tensorboardX import SummaryWriter
-
 from typing import Tuple
 
 
-def create_logger_and_descr_file(experiment_id: str, experiment_descr: str) -> Tuple[logging.Logger, SummaryWriter]:
+def fix_all_seeds(seed: int) -> None:
+    """ Fix all the different seeds for reproducibility. """
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed) 
+
+    
+def create_logger(experiment_id: str) -> logging.Logger:
     # set up directory for the current experiment
     experiment_dir = os.path.join("out", experiment_id)
     log_dir = os.path.join(experiment_dir, "logs")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-
-    # create text file with description of experiment
-    file = open(os.path.join(experiment_dir, "description.txt"), "w")
-    file.write(experiment_descr)
-    file.close()
 
     # define filename for log file
     time_str = time.strftime('%Y-%m-%d-%H-%M')
@@ -37,10 +42,7 @@ def create_logger_and_descr_file(experiment_id: str, experiment_descr: str) -> T
         console = logging.StreamHandler()
         logger.addHandler(console)
 
-    # set up TensorBoard writer
-    tb_writer = SummaryWriter(os.path.join(experiment_dir, "tb"))
-
-    return logger, tb_writer
+    return logger
 
 
 def save_plotting_data(experiment_id: str, metric: str, epoch: int, metric_val: float):
@@ -79,6 +81,22 @@ def save_checkpoint(
 
     experiment_dir = os.path.join("out", experiment_id)
     torch.save(d, os.path.join(experiment_dir, filename))
+
+
+def load_checkpoint(experiment_id: str, model: nn.Module, optimizer: Optimizer) -> Tuple[nn.Module, Optimizer, int, float]:
+    """ Load the latest checkpoint and return the updated model and optimizer, the next epoch and best accuracy so far. """
+    # load checkpoint
+    filename = os.path.join("out", experiment_id, "checkpoint.pth.tar")
+    checkpoint = torch.load(filename)
+
+    # restore model and optimizer state
+    model.load_state_dict(checkpoint['model_state_dict']) 
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+    next_epoch = checkpoint['next_epoch']
+    best_acc = checkpoint['best_acc']
+
+    return model, optimizer, next_epoch, best_acc
 
 
 def save_model(model: nn.Module, experiment_id: str, filename: str):
