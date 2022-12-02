@@ -1,11 +1,14 @@
 import torch
 from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
     ColorJitter, RandomSolarize, CenterCrop, Resize, Normalize
+import torchvision.transforms.functional as F
+
+from typing import Callable
 
 
 class RandomColorDropping(torch.nn.Module):
     """
-    Custom torchvision transform
+    Custom torchvision transform module
 
     Drop all except for one randomly chosen color channel from the image and replace the dropped channels
     with gaussian noise with 0 mean and `noise_std_factor` * torch.std(img[`channel_kept`]) standard deviation
@@ -62,7 +65,7 @@ class RandomColorDropping(torch.nn.Module):
 
 class ColorProjection(torch.nn.Module):
     """
-    Custom torchvision transform
+    Custom torchvision transform module
 
     Project colors of an RGB image to avoid trivial solutions for the patch localization pretext task making use of the
     chromatic aberration in an image. Each pixel of the image is projected onto the green-magenta color axis as
@@ -98,6 +101,85 @@ class ColorProjection(torch.nn.Module):
         return f"{self.__class__.__name__}()"
 
 
+class RelicAugmentationCreator:
+    """
+    Class that constructs random ReLIC transformation functions.
+    Using such a constructed function, the same randomness can be applied to multiple patches.
+    """
+    def __init__(self, 
+        min_crop_scale: float=0.8,
+        brightness: float=0.1,
+        contrast: float=0.1,
+        saturation: float=0.1,
+        hue: float=0.1,
+        grayscale_prob: float=0.05,
+        kernel_size: int=23,
+        sigma_max: float=0.2,
+        solarize_prob: float=0.2,
+        solarize_thresh: float=0.5,
+        ):
+
+        self.crop = RandomResizedCrop(size=244, scale=(min_crop_scale, 1.0))
+        self.brightness = brightness
+        self.contrast = contrast
+        self.saturation = saturation
+        self.hue = hue
+        self.grayscale_prob = grayscale_prob
+        self.kernel_size = kernel_size
+        self.sigma_max = sigma_max
+        self.solarize_prob = solarize_prob
+        self.solarize_thresh = solarize_thresh
+        
+
+    def get_random_function(self) -> Callable[[torch.Tensor], torch.Tensor]:
+        """ Returns a function that takes a tensor and returns an augmented tensor. """
+
+        # fix the random color jittering parameters
+        fn_idx, brightness_factor, contrast_factor, saturation_factor, hue_factor = ColorJitter.get_params(
+            self.brightness, self.contrast, self.saturation, self.hue
+        )
+
+        # determine whether or not to convert to grayscale
+        to_grayscale = torch.rand(1) < self.grayscale_prob
+
+        # fix the random blurring parameters
+        sigma = GaussianBlur.get_params(1e-10, self.sigma_max)
+
+        # determine whether or not to apply solarization
+        apply_solarization = torch.rand(1).item() < self.solarize_prob
+
+        # random augmentation function to return
+        def func(img: torch.Tensor) -> torch.Tensor:
+            # for the random resized crop it doesn't matter if the center and neighbor 
+            # patches aren't cropped the EXACT same way
+            img = self.crop(img)
+
+            # color jittering (adopted from source code of the ColorJitter forward function)
+            for fn_id in fn_idx:
+                if fn_id == 0:
+                    img = F.adjust_brightness(img, brightness_factor)
+                elif fn_id == 1:
+                    img = F.adjust_contrast(img, contrast_factor)
+                elif fn_id == 2:
+                    img = F.adjust_saturation(img, saturation_factor)
+                elif fn_id == 3:
+                    img = F.adjust_hue(img, hue_factor)
+
+            # random RGB to grayscale transformation
+            if to_grayscale:
+                img = F.rgb_to_grayscale(img, num_output_channels=3)
+
+            # random Gaussian blurring
+            img = F.gaussian_blur(img, self.kernel_size, [sigma, sigma])
+
+            # random solarization
+            if apply_solarization:
+                img = F.solarize(img, self.solarize_thresh)
+
+        # return augmentation function with fixed random parameters
+        return func
+
+
 # tiny-imagenet-200 raw image transform
 TINY_IMAGENET_RESIZE = Compose([
     Resize(224),
@@ -124,10 +206,9 @@ PATCH_LOCALIZATION_POST = Compose([
 
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
-    RandomResizedCrop(size=224, scale=(0.8, 1.0), ratio=(0.75, 1.3333333333333333)),
-    # RandomHorizontalFlip(p=0.5),
+    #RandomResizedCrop(size=224, scale=(0.8, 1.0), ratio=(0.75, 1.3333333333333333)),
     ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
     RandomGrayscale(p=0.05),
-    GaussianBlur(kernel_size=23, sigma=(0.1, 0.2)),
-    RandomSolarize(0.5, p=0.5),
+    GaussianBlur(kernel_size=23, sigma=(1e-10, 0.2)),
+    #RandomSolarize(0.7, p=0.2),
 ])
