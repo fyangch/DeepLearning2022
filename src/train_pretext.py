@@ -53,16 +53,16 @@ def train_model(
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters())
 
+    # move model and criterion to GPU if available
+    model = model.to(device)
+    criterion = criterion.to(device)
+
     # resume from latest checkpoint if required
     start_epoch = 0
     best_acc = 0.0
     if resume_from_checkpoint:
         logger.info(f"Loading checkpoint from ./out/{experiment_id}/checkpoint.pth.tar")
         model, optimizer, start_epoch, best_acc = load_checkpoint(experiment_id, model, optimizer)
-    
-    # move model and criterion to GPU if available
-    model = model.to(device)
-    criterion = criterion.to(device)
 
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
