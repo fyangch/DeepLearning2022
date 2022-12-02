@@ -14,16 +14,14 @@ from typing import Optional, List
 from src.utils import create_logger, save_plotting_data, save_checkpoint, save_model
 
 
-# fix random seeds for reproducibility
-# UNCOMMENT THIS BEFORE THE FINAL SUBMISSION!!!
-"""seed = 42
-random.seed(seed)
-torch.manual_seed(seed)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(seed)
-
-np.random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)"""
+def fix_all_seeds(seed: int) -> None:
+    """ Fix all the different seeds for reproducibility. """
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)    
 
 
 def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
@@ -49,8 +47,12 @@ def train_model(
     num_epochs: int=20,
     curr_best_acc: float=0.0, # only relevant if you resume from a checkpoint
     log_frequency: int=10,
+    fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
+    seed: int=42,
     ) -> None:
     """ Training loop. """
+    if fix_seed:
+        fix_all_seeds(seed=seed)
 
     # Create text logger and TensorBoard writer
     logger = create_logger(experiment_id)
