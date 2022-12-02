@@ -61,8 +61,8 @@ def train_model(
         model, optimizer, start_epoch, best_acc = load_checkpoint(experiment_id, model, optimizer)
     
     # move model and criterion to GPU if available
-    model.to(device)
-    criterion.to(device)
+    model = model.to(device)
+    criterion = criterion.to(device)
 
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
