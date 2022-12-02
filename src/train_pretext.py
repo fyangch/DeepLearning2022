@@ -1,9 +1,7 @@
-# Code adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer
-from tensorboardX import SummaryWriter
 
 import numpy as np
 import random
@@ -55,7 +53,7 @@ def train_model(
     """ Training loop. """
 
     # Create text logger and TensorBoard writer
-    logger, tb_writer = create_logger(experiment_id)
+    logger = create_logger(experiment_id)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
@@ -64,10 +62,10 @@ def train_model(
     best_acc = curr_best_acc # tracks the best accuracy so far
     for epoch in range(start_epoch, num_epochs):
         # train for one epoch
-        train(experiment_id, model, train_loader, device, criterion, optimizer, epoch, logger, tb_writer, log_frequency)
+        train(experiment_id, model, train_loader, device, criterion, optimizer, epoch, logger, log_frequency)
 
         # evaluate on validation set
-        acc = validate(experiment_id, model, val_loader, device, criterion, epoch, logger, tb_writer, log_frequency)
+        acc = validate(experiment_id, model, val_loader, device, criterion, epoch, logger, log_frequency)
 
         # save best model so far
         if acc > best_acc:
@@ -82,9 +80,6 @@ def train_model(
     # save final model
     logger.info(f"Saving final model to ./out/{experiment_id}/")
     save_model(model, experiment_id, "final_model.pth.tar")
-
-    # close TensorBoard writer
-    tb_writer.close()
     
 
 def train(
@@ -96,7 +91,6 @@ def train(
     optimizer: Optimizer,
     epoch: int,
     logger: logging.Logger,
-    tb_writer: SummaryWriter,
     log_frequency: int,
     ) -> None:
     """ Train the model for one epoch. """
@@ -154,9 +148,6 @@ def train(
                       speed=input.size(0)*input.size(1)/batch_time.val,
                       loss=losses)
             logger.info(msg)
-            
-    # update TensorBoard after each epoch
-    tb_writer.add_scalar('train_loss', losses.val, epoch)
 
     # save plotting data for later use
     save_plotting_data(experiment_id, "train_loss", epoch, losses.val)
@@ -170,7 +161,6 @@ def validate(
     criterion: nn.Module,
     epoch: int,
     logger: logging.Logger,
-    tb_writer: SummaryWriter,
     log_frequency: int,
     ) -> float:
     """ Validate the model using the validation set and return the accuracy. """
@@ -239,10 +229,6 @@ def validate(
 
         logger.info('Accuracy: {:.3f}'.format(accuracy))
 
-        # update TensorBoard
-        tb_writer.add_scalar('valid_loss', losses.val, epoch)
-        tb_writer.add_scalar('valid_acc', accuracy, epoch)
-
         # save plotting data for later use
         save_plotting_data(experiment_id, "valid_loss", epoch, losses.val)
         save_plotting_data(experiment_id, "valid_acc", epoch, accuracy)
@@ -250,6 +236,7 @@ def validate(
     return accuracy
 
 
+# adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 class AverageMeter(object):
     """ Computes and stores the average and current value. """
     def __init__(self):

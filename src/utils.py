@@ -6,12 +6,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Optimizer
 
-from tensorboardX import SummaryWriter
-
-from typing import Tuple
-
-
-def create_logger(experiment_id: str) -> Tuple[logging.Logger, SummaryWriter]:
+def create_logger(experiment_id: str) -> logging.Logger:
     # set up directory for the current experiment
     experiment_dir = os.path.join("out", experiment_id)
     log_dir = os.path.join(experiment_dir, "logs")
@@ -32,10 +27,7 @@ def create_logger(experiment_id: str) -> Tuple[logging.Logger, SummaryWriter]:
         console = logging.StreamHandler()
         logger.addHandler(console)
 
-    # set up TensorBoard writer
-    tb_writer = SummaryWriter(os.path.join(experiment_dir, "tb"))
-
-    return logger, tb_writer
+    return logger
 
 
 def save_plotting_data(experiment_id: str, metric: str, epoch: int, metric_val: float):

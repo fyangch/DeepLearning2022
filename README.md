@@ -11,8 +11,7 @@
 This repository contains the code of our group project for the course *Deep Learning*. The notebooks in the root directory are meant for demonstrations and experiments. We put almost all of the main functionalities into the `src` directory such that the notebooks are as clean, minimal and comprehensible as possible.
 
 ### Credits:
-We wrote almost all of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop, the normal logging, TensorBoard logging, as well as good PyTorch practices in general.
-
+We wrote almost all of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop and for the logging of the training progress.
 
 
 ## Setup:
