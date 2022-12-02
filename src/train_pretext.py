@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 from torch.optim import Optimizer
 
 import numpy as np
@@ -25,12 +25,14 @@ def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Te
 def train_model(
     experiment_id: str, # e.g. "our_pretext_42"
     model: nn.Module,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
+    ds_train: Dataset,
+    ds_val: Dataset,
     device: str,
     criterion: nn.Module,
     optimizer: Optional[Optimizer]=None,
-    num_epochs: int=20,
+    num_epochs: int=100,
+    batch_size: int=64,
+    num_workers: int=4,
     resume_from_checkpoint: bool=False,
     log_frequency: int=10,
     fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
@@ -40,8 +42,12 @@ def train_model(
     if fix_seed:
         fix_all_seeds(seed=seed)
 
-    # Create logger with file and console stream handlers
+    # create logger with file and console stream handlers
     logger = create_logger(experiment_id)
+
+    # create data loaders
+    train_loader = DataLoader(ds_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_loader = DataLoader(ds_val, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
@@ -51,6 +57,7 @@ def train_model(
     start_epoch = 0
     best_acc = 0.0
     if resume_from_checkpoint:
+        logger.info(f"Loading checkpoint from ./out/{experiment_id}/checkpoint.pth.tar")
         model, optimizer, start_epoch, best_acc = load_checkpoint(experiment_id, model, optimizer)
     
     # move model and criterion to GPU if available
@@ -67,15 +74,15 @@ def train_model(
         # save best model so far
         if acc > best_acc:
             best_acc = acc
-            logger.info(f"Saving best model to ./out/{experiment_id}/")
+            logger.info(f"Saving best model to ./out/{experiment_id}/best_model.pth.tar")
             save_model(model, experiment_id, "best_model.pth.tar")
 
         # update checkpoint
-        logger.info(f"Saving checkpoint to ./out/{experiment_id}/")
+        logger.info(f"Saving checkpoint to ./out/{experiment_id}/checkpoint.pth.tar")
         save_checkpoint(experiment_id, epoch+1, best_acc, model, optimizer)
 
     # save final model
-    logger.info(f"Saving final model to ./out/{experiment_id}/")
+    logger.info(f"Saving final model to ./out/{experiment_id}/final_model.pth.tar")
     save_model(model, experiment_id, "final_model.pth.tar")
     
 
