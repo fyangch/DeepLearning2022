@@ -13,7 +13,7 @@ import logging
 
 from typing import Optional, List
 
-from src.utils import create_logger_and_descr_file, save_plotting_data, save_checkpoint, save_model
+from src.utils import create_logger, save_plotting_data, save_checkpoint, save_model
 
 
 # fix random seeds for reproducibility
@@ -41,7 +41,6 @@ def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Te
 # More TensorBoard details: https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 def train_model(
     experiment_id: str, # e.g. "our_pretext_12"
-    experiment_descr: str,
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
@@ -56,7 +55,7 @@ def train_model(
     """ Training loop. """
 
     # Create text logger and TensorBoard writer
-    logger, tb_writer = create_logger_and_descr_file(experiment_id, experiment_descr)
+    logger, tb_writer = create_logger(experiment_id)
 
     # use Adam if no optimizer is specified
     if optimizer is None:
