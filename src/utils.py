@@ -137,4 +137,4 @@ def display_image(
 def display_dataset_sample(ds_sample: Tuple[torch.Tensor, torch.Tensor], normalization_params=None):
     features, labels = ds_sample
 
-    display_image(list(features), normalization_params=normalization_params, plt_title=f"label: {labels.item()}")
+    display_image(list(features), normalization_params=normalization_params, plt_title=f"label: {labels.item() if isinstance(labels, torch.Tensor) else labels}")
