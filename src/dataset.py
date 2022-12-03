@@ -8,13 +8,14 @@ from torch import nn
 from torch.utils.data import Dataset
 import torchvision
 from torchvision.io import ImageReadMode
-import torchvision.transforms.functional as TF
+import torchvision.transforms.functional as F
 from torchvision.transforms import Compose, RandomCrop, CenterCrop, Resize
 
 from typing import List, Tuple
 
 # project imports
-from src.transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST, RANDOM_JITTER_CROP, GRID_SIZE
+from src.transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST, RANDOM_JITTER_CROP, GRID_SIZE, \
+    RelicAugmentationCreator
 
 
 def get_imagenet_info(
@@ -122,7 +123,7 @@ def image_to_patches(image: torch.Tensor) -> List[torch.Tensor]:
     # 1. center crop (ensure gap) 2. random crop (random jitter) 3. resize (to ensure image_size stays the same)
     random_jitter = Compose([CenterCrop(grid_size - patch_size // 4), RandomCrop(patch_size), Resize(image_size)])
     patches = [
-        random_jitter(TF.crop(image, i * grid_size, j * grid_size, grid_size, grid_size))
+        random_jitter(F.crop(image, i * grid_size, j * grid_size, grid_size, grid_size))
         for i in range(splits_per_side)
         for j in range(splits_per_side)
     ]
@@ -153,9 +154,9 @@ def extract_patches(image: torch.Tensor, label: int) -> Tuple[torch.Tensor, torc
     neighbor_row, neighbor_col = label // 3, label % 3
 
     # 1. crop center and neighbor patch with gaps and random jitter
-    center_patch = RANDOM_JITTER_CROP(TF.crop(image, 1 * GRID_SIZE, 1 * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+    center_patch = RANDOM_JITTER_CROP(F.crop(image, 1 * GRID_SIZE, 1 * GRID_SIZE, GRID_SIZE, GRID_SIZE))
     neighbor_patch = RANDOM_JITTER_CROP(
-        TF.crop(image, neighbor_row * GRID_SIZE, neighbor_col * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+        F.crop(image, neighbor_row * GRID_SIZE, neighbor_col * GRID_SIZE, GRID_SIZE, GRID_SIZE))
 
     return center_patch, neighbor_patch
 
@@ -298,3 +299,63 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
         """
 
         return [center_patch, self.aug_transform(neighbor_patch), self.aug_transform(neighbor_patch)]
+
+
+class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
+    """
+    Dataset implementing our modified Patch Localization method
+    A sample is made up of the 8 possible tasks for a given grid ((center, A1(neighbor), A2(neighbor)), labels)
+    """
+
+    def __init__(
+            self,
+            image_paths: List[str],
+            pre_transform: nn.Module = None,
+            aug_transform_creator=None,
+            post_transform: nn.Module = None,
+            cache_images: bool = False,
+    ):
+        """
+        Parameters
+        ----------
+        image_paths
+            A list of image paths returned by the sample_image_paths function.
+        pre_transform
+            A torchvision transform that is applied to every raw image BEFORE the augmentation.
+        aug_transform_creator
+            An object with a method `get_random_function` that returns an augmentation transform for torch.Tensor.
+        post_transform
+            A torchvision transform that is applied to every augmented image AFTER the augmentation.
+        cache_images
+            Whether to cache the resized images after loading them for the first time or to reload them every time.
+            Aims to reduce latency of reloading images at cost of more memory usage.
+        """
+        super(OurPatchLocalizationDatasetv2, self).__init__(
+            image_paths=image_paths,
+            pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
+            post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
+            cache_images=cache_images,
+        )
+
+        self.aug_transform_creator = aug_transform_creator if aug_transform_creator else RelicAugmentationCreator()
+
+    def convert_patches(self, center_patch: torch.Tensor, neighbor_patch: torch.Tensor) -> List[torch.Tensor]:
+        """
+        Parameters
+        ----------
+        center_patch
+            A center patch in torch.Tensor format.
+        neighbor_patch
+            A neighbor patch in torch.Tensor format.
+
+        Returns
+        -------
+        List[torch.Tensor]
+            features: List with the 3 patches (center, A1(neighbor), A2(neighbor)) with shape [3, 224, 224]
+        """
+        # sample 2 random augmentations
+        aug_transform1 = self.aug_transform_creator.get_random_function()
+        aug_transform2 = self.aug_transform_creator.get_random_function()
+        # augment the center and neighbor patch with both augmentations separately
+        return [aug_transform1(center_patch), aug_transform1(neighbor_patch), aug_transform2(center_patch),
+                aug_transform2(neighbor_patch)]

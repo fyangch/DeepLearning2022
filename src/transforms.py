@@ -106,23 +106,25 @@ INPUT_SIZE = 224
 GRID_SIZE = INPUT_SIZE // 3
 PATCH_SIZE = INPUT_SIZE // 4
 
+
 class RelicAugmentationCreator:
     """
     Class that constructs random ReLIC transformation functions.
     Using such a constructed function, the same randomness can be applied to multiple patches.
     """
-    def __init__(self, 
-        min_crop_scale: float=0.8,
-        brightness: float=0.1,
-        contrast: float=0.1,
-        saturation: float=0.1,
-        hue: float=0.1,
-        grayscale_prob: float=0.05,
-        kernel_size: int=23,
-        sigma_max: float=0.2,
-        solarize_prob: float=0.2,
-        solarize_thresh: float=0.5,
-        ):
+
+    def __init__(self,
+                 min_crop_scale: float = 0.8,
+                 brightness: float = 0.1,
+                 contrast: float = 0.1,
+                 saturation: float = 0.1,
+                 hue: float = 0.1,
+                 grayscale_prob: float = 0.05,
+                 kernel_size: int = 23,
+                 sigma_max: float = 0.2,
+                 solarize_prob: float = 0.2,
+                 solarize_thresh: float = 0.5,
+                 ):
 
         self.crop = RandomResizedCrop(size=244, scale=(min_crop_scale, 1.0))
         self.brightness = brightness
@@ -134,7 +136,12 @@ class RelicAugmentationCreator:
         self.sigma_max = sigma_max
         self.solarize_prob = solarize_prob
         self.solarize_thresh = solarize_thresh
-        
+
+        # transform random color jittering parameters to intervals
+        self.brightness = ColorJitter._check_input(self, self.brightness, "brightness")
+        self.contrast = ColorJitter._check_input(self, self.contrast, "contrast")
+        self.saturation = ColorJitter._check_input(self, self.saturation, "saturation")
+        self.hue = ColorJitter._check_input(self, self.hue, "hue", center=0, bound=(-0.5, 0.5), clip_first_on_zero=False)
 
     def get_random_function(self) -> Callable[[torch.Tensor], torch.Tensor]:
         """ Return a function that takes a tensor and returns an augmented tensor. """
@@ -144,13 +151,13 @@ class RelicAugmentationCreator:
             self.brightness, self.contrast, self.saturation, self.hue
         )
 
-        # determine whether or not to convert to grayscale
+        # determine whether to convert to grayscale
         to_grayscale = torch.rand(1).item() < self.grayscale_prob
 
         # fix the random blurring parameter
         sigma = GaussianBlur.get_params(1e-10, self.sigma_max)
 
-        # determine whether or not to apply solarization
+        # determine whether to apply solarization
         apply_solarization = torch.rand(1).item() < self.solarize_prob
 
         # random augmentation function to return
@@ -175,14 +182,17 @@ class RelicAugmentationCreator:
                 img = F.rgb_to_grayscale(img, num_output_channels=3)
 
             # random Gaussian blurring
-            img = F.gaussian_blur(img, self.kernel_size, [sigma, sigma])
+            img = F.gaussian_blur(img, self.kernel_size, sigma)
 
             # random solarization
             if apply_solarization:
                 img = F.solarize(img, self.solarize_thresh)
 
+            return img
+
         # return augmentation function with fixed random parameters
         return func
+
 
 # tiny-imagenet-200 raw image transform
 TINY_IMAGENET_RESIZE = Compose([
@@ -210,11 +220,11 @@ PATCH_LOCALIZATION_POST = Compose([
 
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
-    #RandomResizedCrop(size=224, scale=(0.8, 1.0), ratio=(0.75, 1.3333333333333333)),
+    # RandomResizedCrop(size=224, scale=(0.8, 1.0), ratio=(0.75, 1.3333333333333333)),
     ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
     RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(1e-10, 0.2)),
-    #RandomSolarize(0.7, p=0.2),
+    # RandomSolarize(0.7, p=0.2),
 ])
 
 # randomly crop a patch from a grid field with a PATCH_SIZE//4 gap
