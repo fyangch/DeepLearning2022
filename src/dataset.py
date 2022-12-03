@@ -351,7 +351,7 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
         Returns
         -------
         List[torch.Tensor]
-            features: List with the 3 patches (center, A1(neighbor), A2(neighbor)) with shape [3, 224, 224]
+            features: List with the 3 patches (A1(center), A1(neighbor), A2(center), A2(neighbor)) with shape [3, 224, 224]
         """
         # sample 2 random augmentations
         aug_transform1 = self.aug_transform_creator.get_random_function()
