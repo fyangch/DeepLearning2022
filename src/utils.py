@@ -6,9 +6,13 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import torchvision
+from matplotlib import pyplot as plt
 from torch.optim import Optimizer
 
 from typing import Tuple
+
+from torchvision.transforms import Normalize
 
 
 def fix_all_seeds(seed: int) -> None:
@@ -102,3 +106,33 @@ def load_checkpoint(experiment_id: str, model: nn.Module, optimizer: Optimizer) 
 def save_model(model: nn.Module, experiment_id: str, filename: str):
     experiment_dir = os.path.join("out", experiment_id)
     torch.save(model.state_dict(), os.path.join(experiment_dir, filename))
+
+
+def display_image(
+        image: torch.Tensor,
+        normalization_params=None,
+        plt_title=None
+):
+    """ Display a torch tensor image """
+    if normalization_params is not None:
+        # reverse normalization according to normalization dict
+        norm_mean, norm_std = np.array(normalization_params['mean']), np.array(normalization_params['std'])
+        reverse_normalize = Normalize(mean=-norm_mean / norm_std, std=1 / norm_std)
+        img = reverse_normalize(image)
+
+    img_np = image.numpy()
+    # shuffle the color channels correctly
+    plt.imshow(np.transpose(img_np, (1, 2, 0)))
+    # plot
+    plt.title(plt_title)
+    plt.show()
+
+
+def display_images(images, nrow: int = 8, normalization_params=None, plt_title=None):
+    display_image(torchvision.utils.make_grid(images, nrow=nrow), normalization_params=normalization_params, plt_title=plt_title)
+
+
+def display_dataset_sample(ds_sample: Tuple[torch.Tensor, torch.Tensor], normalization_params=None):
+    features, labels = ds_sample
+
+    display_images(list(features), normalization_params=normalization_params, plt_title=f"label: {labels.item()}")
