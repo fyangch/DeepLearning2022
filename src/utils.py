@@ -10,7 +10,7 @@ import torchvision
 from matplotlib import pyplot as plt
 from torch.optim import Optimizer
 
-from typing import Tuple
+from typing import Tuple, Union, List, Dict
 
 from torchvision.transforms import Normalize
 
@@ -109,16 +109,22 @@ def save_model(model: nn.Module, experiment_id: str, filename: str):
 
 
 def display_image(
-        image: torch.Tensor,
-        normalization_params=None,
-        plt_title=None
+        image: Union[torch.Tensor, List[torch.Tensor]],
+        normalization_params: Dict = None,
+        plt_title: str = None,
+        nrow: int = 8,
 ):
-    """ Display a torch tensor image """
+    """ Display a single or multiple torch tensor images """
+
+    if not (isinstance(image, torch.Tensor) and len(image.shape) == 3):
+        # place images into grid
+        image = torchvision.utils.make_grid(image, nrow=nrow)
+
     if normalization_params is not None:
         # reverse normalization according to normalization dict
         norm_mean, norm_std = np.array(normalization_params['mean']), np.array(normalization_params['std'])
         reverse_normalize = Normalize(mean=-norm_mean / norm_std, std=1 / norm_std)
-        img = reverse_normalize(image)
+        image = reverse_normalize(image)
 
     img_np = image.numpy()
     # shuffle the color channels correctly
@@ -128,11 +134,7 @@ def display_image(
     plt.show()
 
 
-def display_images(images, nrow: int = 8, normalization_params=None, plt_title=None):
-    display_image(torchvision.utils.make_grid(images, nrow=nrow), normalization_params=normalization_params, plt_title=plt_title)
-
-
 def display_dataset_sample(ds_sample: Tuple[torch.Tensor, torch.Tensor], normalization_params=None):
     features, labels = ds_sample
 
-    display_images(list(features), normalization_params=normalization_params, plt_title=f"label: {labels.item()}")
+    display_image(list(features), normalization_params=normalization_params, plt_title=f"label: {labels.item()}")
