@@ -132,7 +132,7 @@ class RelicAugmentationCreator:
         
 
     def get_random_function(self) -> Callable[[torch.Tensor], torch.Tensor]:
-        """ Returns a function that takes a tensor and returns an augmented tensor. """
+        """ Return a function that takes a tensor and returns an augmented tensor. """
 
         # fix the random color jittering parameters
         fn_idx, brightness_factor, contrast_factor, saturation_factor, hue_factor = ColorJitter.get_params(
@@ -140,9 +140,9 @@ class RelicAugmentationCreator:
         )
 
         # determine whether or not to convert to grayscale
-        to_grayscale = torch.rand(1) < self.grayscale_prob
+        to_grayscale = torch.rand(1).item() < self.grayscale_prob
 
-        # fix the random blurring parameters
+        # fix the random blurring parameter
         sigma = GaussianBlur.get_params(1e-10, self.sigma_max)
 
         # determine whether or not to apply solarization
