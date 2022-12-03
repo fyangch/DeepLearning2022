@@ -12,16 +12,6 @@ from typing import Optional, List
 from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
-def get_patches(batch_features: torch.Tensor, num_patches: int) -> List[torch.Tensor]:
-    """ Select the individual patches from the features of a single batch and reshape them into the correct shape. """
-
-    # batch_features have shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
-    patch_imgs = batch_features.view(-1, *batch_features.shape[-3:])
-
-    # for each patch get every num_patches-th image
-    return [patch_imgs[i::num_patches] for i in range(num_patches)]
-
-
 def train_model(
     experiment_id: str, # e.g. "our_pretext_42"
     model: nn.Module,
@@ -109,28 +99,19 @@ def train(
     for i, (input, target) in enumerate(train_loader):
         curr_time = time.time()
 
-        # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
-        target = target.view(-1).long().to(device) # cross entropy loss function expects long type
-        input = input.to(device)
+        target = target.long().to(device) # cross entropy loss function expects long type
 
-        # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
-        if input.shape[2] == 2: # original pretext task
-            center, neighbor = get_patches(input, 2)
-            output = model(center, neighbor) 
+        if len(input) == 2: # original pretext task
+            center, neighbor = input
+            output = model(center.to(device), neighbor.to(device)) 
             loss = criterion(output, target)
-            # import matplotlib.pyplot as plt
-            # print(f"label: {target.cpu()[0]}") 
-            # plt.imshow(center[0].cpu().permute(1, 2, 0))
-            # plt.show()
-            # plt.imshow(neighbor[0].cpu().permute(1, 2, 0))
-            # plt.show()
-        elif input.shape[2] == 3: # our pretext task with 3 patches
-            center, neighbor1, neighbor2 = get_patches(input, 3)
-            output1, output2 = model(center, neighbor1, neighbor2)
+        elif len(input) == 3: # our pretext task with 3 patches
+            center, neighbor1, neighbor2 = input
+            output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
             loss = criterion(output1, output2, target)
         else: # our pretext task with 4 patches
-            center1, center2, neighbor1, neighbor2 = get_patches(input, 4)
-            output1, output2 = model(center1, center2, neighbor1, neighbor2)
+            center1, center2, neighbor1, neighbor2 = input
+            output1, output2 = model(center1.to(device), center2.to(device), neighbor1.to(device), neighbor2).to(device)
             loss = criterion(output1, output2, target)
 
         # compute gradient and do update step
@@ -149,8 +130,7 @@ def train(
                   'Speed {speed:.1f} samples/s\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
                       epoch, i, len(train_loader)-1, batch_time=batch_time,
-                      speed=input.size(0)*input.size(1)/batch_time.val,
-                      loss=losses)
+                      speed=target.size(0)/batch_time.val, loss=losses)
             logger.info(msg)
 
     # save plotting data for later use
@@ -184,27 +164,24 @@ def validate(
         for i, (input, target) in enumerate(val_loader):
             curr_time = time.time()
 
-            # reshape target shape from [batch_size, samples_per_image] to [batch_size * samples_per_image]
-            target = target.view(-1).long().to(device) # cross entropy loss function expects long type
-            input = input.to(device)
+            target = target.long().to(device) # cross entropy loss function expects long type
             
-            # input has shape [batch_size, samples_per_image, n_patches, n_channels, img_height, img_width]
-            if input.shape[2] == 2: # original pretext task
-                center, neighbor = get_patches(input, 2)
-                output = model(center, neighbor) 
-                loss = criterion(output, target) 
+            if len(input) == 2: # original pretext task
+                center, neighbor = input
+                output = model(center.to(device), neighbor.to(device)) 
+                loss = criterion(output, target)
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
                 all_labels.append(target.detach().cpu().numpy())
             else: # our pretext tasks
-                if input.shape[2] == 3: # our pretext task with 3 patches
-                    center, neighbor1, neighbor2 = get_patches(input, 3)
-                    output1, output2 = model(center, neighbor1, neighbor2)
+                if len(input) == 3: # our pretext task with 3 patches
+                    center, neighbor1, neighbor2 = input
+                    output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
                     loss = criterion(output1, output2, target)
                 else: # our pretext task with 4 patches
-                    center1, center2, neighbor1, neighbor2 = get_patches(input, 4)
-                    output1, output2 = model(center1, center2, neighbor1, neighbor2)
+                    center1, center2, neighbor1, neighbor2 = input
+                    output1, output2 = model(center1.to(device), center2.to(device), neighbor1.to(device), neighbor2).to(device)
                     loss = criterion(output1, output2, target)
 
                 # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)

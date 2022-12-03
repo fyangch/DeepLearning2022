@@ -216,9 +216,9 @@ class OriginalPatchLocalizationDataset(Dataset):
             image = image / 255
 
         # randomly select a label (between 0 and 7)
-        label = torch.randint(7, (1,))
+        label = torch.randint(7, (1,)).item()
         # extract center patch and neighbor patch corresponding to label
-        center_patch, neighbor_patch = extract_patches(image, label.item())
+        center_patch, neighbor_patch = extract_patches(image, label)
         # convert patches
         features = self.convert_patches(center_patch, neighbor_patch)
         # apply post transform to each patch
