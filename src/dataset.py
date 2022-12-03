@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import Dataset
 import torchvision
 from torchvision.io import ImageReadMode
-import torchvision.transforms.functional as TF
+import torchvision.transforms.functional as F
 from torchvision.transforms import Compose, RandomCrop, CenterCrop, Resize
 
 from typing import List, Tuple
@@ -122,7 +122,7 @@ def image_to_patches(image: torch.Tensor) -> List[torch.Tensor]:
     # 1. center crop (ensure gap) 2. random crop (random jitter) 3. resize (to ensure image_size stays the same)
     random_jitter = Compose([CenterCrop(grid_size - patch_size // 4), RandomCrop(patch_size), Resize(image_size)])
     patches = [
-        random_jitter(TF.crop(image, i * grid_size, j * grid_size, grid_size, grid_size))
+        random_jitter(F.crop(image, i * grid_size, j * grid_size, grid_size, grid_size))
         for i in range(splits_per_side)
         for j in range(splits_per_side)
     ]
@@ -153,9 +153,9 @@ def extract_patches(image: torch.Tensor, label: int) -> Tuple[torch.Tensor, torc
     neighbor_row, neighbor_col = label // 3, label % 3
 
     # 1. crop center and neighbor patch with gaps and random jitter
-    center_patch = RANDOM_JITTER_CROP(TF.crop(image, 1 * GRID_SIZE, 1 * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+    center_patch = RANDOM_JITTER_CROP(F.crop(image, 1 * GRID_SIZE, 1 * GRID_SIZE, GRID_SIZE, GRID_SIZE))
     neighbor_patch = RANDOM_JITTER_CROP(
-        TF.crop(image, neighbor_row * GRID_SIZE, neighbor_col * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+        F.crop(image, neighbor_row * GRID_SIZE, neighbor_col * GRID_SIZE, GRID_SIZE, GRID_SIZE))
 
     return center_patch, neighbor_patch
 
