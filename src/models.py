@@ -136,15 +136,15 @@ class OurPretextNetworkv2(OriginalPretextNetwork):
 
     def forward(self, 
         center1: torch.Tensor, 
+        neighbor1: torch.Tensor,
         center2: torch.Tensor, 
-        neighbor1: torch.Tensor, 
         neighbor2: torch.Tensor,
         ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # embeddings
         center1 = self.get_embedding(center1)
-        center2 = self.get_embedding(center2)
         neighbor1 = self.get_embedding(neighbor1)
+        center2 = self.get_embedding(center2)
         neighbor2 = self.get_embedding(neighbor2)
 
         # pretext task
