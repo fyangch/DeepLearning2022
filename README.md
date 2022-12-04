@@ -40,8 +40,8 @@ To reproduce the final results from our report, please first follow the setup in
 
 ### Source Files:
 * `src/dataset.py`: Our custom dataset classes.
-* `src/loss.py`: Custom loss function for our proposed pretext task.
+* `src/loss.py`: Custom loss function for our proposed pretext tasks.
 * `src/models.py`: Our models with support for different backbones.
-* `src/train_pretext.py`: Training loop for the pretext tasks.
+* `src/train.py`: Training loop for both pretext and downstream tasks.
 * `src/transforms.py`: Image transformations and augmentations.
-* `src/utils.py`: Logging, model saving, checkpointing.
+* `src/utils.py`: Logging, model saving, checkpointing, etc.
