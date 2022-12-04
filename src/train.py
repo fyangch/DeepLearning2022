@@ -130,11 +130,11 @@ def train(
                   'Speed {speed:.1f} samples/s\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
                       epoch, i, len(train_loader)-1, batch_time=batch_time,
-                      speed=target.size(0)/batch_time.val, loss=losses)
+                      speed=target.size(0)/batch_time.avg, loss=losses)
             logger.info(msg)
 
     # save plotting data for later use
-    save_plotting_data(experiment_id, "train_loss", epoch, losses.val)
+    save_plotting_data(experiment_id, "train_loss", epoch, losses.avg)
 
 
 def validate(
@@ -211,7 +211,7 @@ def validate(
         logger.info('Accuracy: {:.3f}'.format(accuracy))
 
         # save plotting data for later use
-        save_plotting_data(experiment_id, "valid_loss", epoch, losses.val)
+        save_plotting_data(experiment_id, "valid_loss", epoch, losses.avg)
         save_plotting_data(experiment_id, "valid_acc", epoch, accuracy)
 
     return accuracy
