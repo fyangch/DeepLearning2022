@@ -130,7 +130,7 @@ def train(
                   'Speed {speed:.1f} samples/s\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
                       epoch, i, len(train_loader)-1, batch_time=batch_time,
-                      speed=target.size(0)/batch_time.avg, loss=losses)
+                      speed=target.size(0)/batch_time.val, loss=losses)
             logger.info(msg)
 
     # save plotting data for later use
