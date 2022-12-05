@@ -8,10 +8,10 @@
 
 
 ## Overview:
-This repository contains the code of our group project for the course *Deep Learning*. The notebooks in the root directory are meant for demonstrations and experiments. We put almost all of the main functionalities into the `src` directory such that the notebooks are as clean, minimal and comprehensible as possible.
+This repository contains the code of our group project for the course *Deep Learning (AS22 ETH Zürich)*. The notebooks in the root directory are meant for demonstrations and experiments. We put most of the main functionalities into the `src` directory so that the notebooks are as clean, minimal and comprehensible as possible.
 
 ### Credits:
-We wrote almost all of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop and for the logging of the training progress.
+We wrote most of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop and for the logging of the training progress.
 
 
 ## Setup:
@@ -24,7 +24,13 @@ We wrote almost all of the code ourselves from scratch. We thereby used [this re
 1. TODO
 
 ### Environment:
-1. TODO
+1. Install miniconda ([installation instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)).
+2. Create new environment named `ESIPL` with python and activate it.
+   1. `conda create -n ESIPL python`
+   2. `conda activate ESIPL`
+3. Install requirements listed in requirements.txt in the root directory of the repository.
+   1. `pip install -r requirements.txt`
+4. **Optional:** Install additional packages in the environment such as Jupyter Notebook or JupyterLab ([installation instructions](https://jupyter.org/install)).
 
 
 ## Final Results:
