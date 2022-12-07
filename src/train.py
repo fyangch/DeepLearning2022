@@ -7,8 +7,11 @@ import numpy as np
 import time
 import logging
 
-from typing import Optional, List
+from typing import Optional, Dict
 
+from src.dataset import OurPatchLocalizationDataset, sample_image_paths
+from src.loss import CustomLoss
+from src.models import OurPretextNetwork, OriginalPretextNetwork
 from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
@@ -215,6 +218,79 @@ def validate(
         save_plotting_data(experiment_id, "valid_acc", epoch, accuracy)
 
     return accuracy
+
+
+def run_pretext(
+        experiment_id: str,
+        aug_transform: nn.Module,
+        optimizer_kwargs: Dict = None,
+        loss_alpha: float = 1,
+        loss_symmetric: bool = True,
+        pretext_type: str = "our",
+        n_train: int = 46000,
+        cache_images: bool = True,
+        num_epochs: int = 100,
+        batch_size: int = 64,
+        num_workers: int = 4,
+        log_frequency: int = 100,
+) -> None:
+
+    # print params used
+    print("="*50)
+    print(f"running {pretext_type} pretext task with the following parameters:")
+    print(f"experiment_id: {experiment_id}")
+    print(f"aug_transform: {aug_transform}")
+    print(f"optimizer_kwargs: {optimizer_kwargs}")
+    print(f"loss_alpha: {loss_alpha}\tloss_symmetric: {loss_symmetric}")
+    print(f"n_train: {n_train}")
+    print(f"cache_images: {cache_images}")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Device: {}".format(device))
+
+    # always use whole dataset
+    img_paths = sample_image_paths(frac=1.0)
+
+    # initialize datasets and model
+    if pretext_type.lower() == "our":
+        ds_train = OurPatchLocalizationDataset(image_paths=img_paths[:n_train], aug_transform=aug_transform,
+                                               cache_images=cache_images)
+        ds_val = OurPatchLocalizationDataset(image_paths=img_paths[n_train:], aug_transform=aug_transform,
+                                             cache_images=cache_images)
+        model = OurPretextNetwork(backbone="resnet18")
+    else:
+        ds_train = OurPatchLocalizationDataset(image_paths=img_paths[:n_train], aug_transform=aug_transform,
+                                               cache_images=cache_images)
+        ds_val = OurPatchLocalizationDataset(image_paths=img_paths[n_train:], aug_transform=aug_transform,
+                                             cache_images=cache_images)
+        model = OriginalPretextNetwork(backbone="resnet18")
+
+    print("Number of training images: \t {}".format(len(ds_train)))
+    print("Number of validation images: \t {}".format(len(ds_val)))
+
+    # initialize loss
+    criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
+
+    # initialize optimizer
+    if optimizer_kwargs is None:
+        optimizer_kwargs = {}
+    optimizer = torch.optim.Adam(model.parameters(), **optimizer_kwargs)
+
+    # train model
+    train_model(
+        experiment_id=experiment_id,
+        model=model,
+        ds_train=ds_train,
+        ds_val=ds_val,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        log_frequency=log_frequency,
+        resume_from_checkpoint=False,
+    )
 
 
 # adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
