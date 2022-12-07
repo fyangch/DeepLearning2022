@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 
-from typing import Tuple
+from typing import Tuple, List
 
 
 def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
@@ -154,3 +154,33 @@ class OurPretextNetworkv2(OriginalPretextNetwork):
         output2 = self.fc(output2)
         
         return output1, output2
+
+
+class DownstreamNetwork(nn.Module):
+    def __init__(self, pretext_model: OriginalPretextNetwork, embedding_dim: int=1000):
+        """
+        Args:
+            pretext_model (OriginalPretextNetwork):
+                The trained self-supervised model that is or inherits from OriginalPretextNetwork.
+                Its encoder will be used by the downstream model with freezed layers.
+            embedding_dim (int):
+                Output dimension of the encoder network in the pretext model.
+        """
+        super(OriginalPretextNetwork, self).__init__()
+
+        # freeze weights of encoder network
+        self.pretext_model = pretext_model
+        for param in self.pretext_model.encoder.parameters():
+            param.requires_grad = False
+
+        # define classification head
+        self.head = nn.Sequential(
+            nn.Linear(2*embedding_dim, 1000),
+            nn.ReLU(inplace=True), 
+            nn.Linear(1000, 200),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pretext_model.get_embedding(x)
+        x = self.head(x)
+        return x
