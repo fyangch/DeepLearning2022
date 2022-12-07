@@ -16,7 +16,7 @@ from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_che
 
 
 def train_model(
-    experiment_id: str, # e.g. "our_pretext_42"
+    experiment_id: str,
     model: nn.Module,
     ds_train: Dataset,
     ds_val: Dataset,
@@ -104,18 +104,22 @@ def train(
 
         target = target.long().to(device) # cross entropy loss function expects long type
 
-        if len(input) == 2: # original pretext task
-            center, neighbor = input
-            output = model(center.to(device), neighbor.to(device)) 
+        if isinstance(input, list): # pretext tasks
+            if len(input) == 2: # original pretext task
+                center, neighbor = input
+                output = model(center.to(device), neighbor.to(device)) 
+                loss = criterion(output, target)
+            elif len(input) == 3: # our pretext task with 3 patches
+                center, neighbor1, neighbor2 = input
+                output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
+                loss = criterion(output1, output2, target)
+            else: # our pretext task with 4 patches
+                center1, neighbor1, center2, neighbor2 = input
+                output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                loss = criterion(output1, output2, target)
+        else: # downstream task
+            output = model(input.to(device))
             loss = criterion(output, target)
-        elif len(input) == 3: # our pretext task with 3 patches
-            center, neighbor1, neighbor2 = input
-            output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
-            loss = criterion(output1, output2, target)
-        else: # our pretext task with 4 patches
-            center1, neighbor1, center2, neighbor2 = input
-            output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
-            loss = criterion(output1, output2, target)
 
         # compute gradient and do update step
         optimizer.zero_grad()
@@ -169,28 +173,36 @@ def validate(
 
             target = target.long().to(device) # cross entropy loss function expects long type
             
-            if len(input) == 2: # original pretext task
-                center, neighbor = input
-                output = model(center.to(device), neighbor.to(device)) 
+            if isinstance(input, list): # pretext tasks
+                if len(input) == 2: # original pretext task
+                    center, neighbor = input
+                    output = model(center.to(device), neighbor.to(device)) 
+                    loss = criterion(output, target)
+
+                    # update list of labels and predictions for computation of accuracy
+                    all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
+                    all_labels.append(target.detach().cpu().numpy())
+                else: # our pretext tasks
+                    if len(input) == 3: # our pretext task with 3 patches
+                        center, neighbor1, neighbor2 = input
+                        output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
+                        loss = criterion(output1, output2, target)
+                    else: # our pretext task with 4 patches
+                        center1, neighbor1, center2, neighbor2 = input
+                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                        loss = criterion(output1, output2, target)
+
+                    # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
+                    all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
+                    all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
+                    all_labels.append(target.detach().cpu().numpy())
+                    all_labels.append(target.detach().cpu().numpy())
+            else: # downstream task
+                output = model(input.to(device))
                 loss = criterion(output, target)
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
-                all_labels.append(target.detach().cpu().numpy())
-            else: # our pretext tasks
-                if len(input) == 3: # our pretext task with 3 patches
-                    center, neighbor1, neighbor2 = input
-                    output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
-                    loss = criterion(output1, output2, target)
-                else: # our pretext task with 4 patches
-                    center1, neighbor1, center2, neighbor2 = input
-                    output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
-                    loss = criterion(output1, output2, target)
-
-                # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
-                all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
-                all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
-                all_labels.append(target.detach().cpu().numpy())
                 all_labels.append(target.detach().cpu().numpy())
 
             # record loss and batch processing time
