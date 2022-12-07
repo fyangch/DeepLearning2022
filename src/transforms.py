@@ -220,11 +220,11 @@ PATCH_LOCALIZATION_POST = Compose([
 
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
-    # RandomResizedCrop(size=224, scale=(0.8, 1.0), ratio=(0.75, 1.3333333333333333)),
-    ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+    RandomResizedCrop(size=224, scale=(0.32, 1.0), ratio=(0.75, 1.3333333333333333)),
+    ColorJitter(brightness=0.8, contrast=0.8, saturation=0.8, hue=0.2),
     RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(1e-10, 0.2)),
-    # RandomSolarize(0.7, p=0.2),
+    RandomSolarize(0.7, p=0.2),
 ])
 
 # randomly crop a patch from a grid field with a PATCH_SIZE//4 gap
