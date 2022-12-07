@@ -233,6 +233,7 @@ def run_pretext(
         batch_size: int = 64,
         num_workers: int = 4,
         log_frequency: int = 100,
+        resume_from_checkpoint: bool = False,
 ) -> None:
 
     # print params used
@@ -289,7 +290,7 @@ def run_pretext(
         batch_size=batch_size,
         num_workers=num_workers,
         log_frequency=log_frequency,
-        resume_from_checkpoint=False,
+        resume_from_checkpoint=resume_from_checkpoint,
     )
 
 

@@ -22,5 +22,6 @@ run_pretext(
     loss_symmetric=True,
     pretext_type='our',
     cache_images=True,
-    num_epochs=100
+    num_epochs=100,
+    resume_from_checkpoint=False,
 )
