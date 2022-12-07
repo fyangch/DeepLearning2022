@@ -9,7 +9,8 @@ import logging
 
 from typing import Optional, Dict
 
-from src.dataset import OurPatchLocalizationDataset, sample_image_paths
+from src.dataset import OurPatchLocalizationDataset, OriginalPatchLocalizationDataset, \
+    get_imagenet_info
 from src.loss import CustomLoss
 from src.models import OurPretextNetwork, OriginalPretextNetwork
 from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
@@ -262,20 +263,18 @@ def run_pretext(
     print("Device: {}".format(device))
 
     # always use whole dataset
-    img_paths = sample_image_paths(frac=1.0)
+    imagenet_info = get_imagenet_info()
 
     # initialize datasets and model
     if pretext_type.lower() == "our":
-        ds_train = OurPatchLocalizationDataset(image_paths=img_paths[:n_train], aug_transform=aug_transform,
+        ds_train = OurPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
                                                cache_images=cache_images)
-        ds_val = OurPatchLocalizationDataset(image_paths=img_paths[n_train:], aug_transform=aug_transform,
+        ds_val = OurPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
                                              cache_images=cache_images)
         model = OurPretextNetwork(backbone="resnet18")
     else:
-        ds_train = OurPatchLocalizationDataset(image_paths=img_paths[:n_train], aug_transform=aug_transform,
-                                               cache_images=cache_images)
-        ds_val = OurPatchLocalizationDataset(image_paths=img_paths[n_train:], aug_transform=aug_transform,
-                                             cache_images=cache_images)
+        ds_train = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
+        ds_val = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OriginalPretextNetwork(backbone="resnet18")
 
     print("Number of training images: \t {}".format(len(ds_train)))
