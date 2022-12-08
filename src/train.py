@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -251,13 +252,9 @@ def run_pretext(
 
     # print params used
     print("="*50)
-    print(f"running {pretext_type} pretext task with the following parameters:")
-    print(f"experiment_id: {experiment_id}")
-    print(f"aug_transform: {aug_transform}")
-    print(f"optimizer_kwargs: {optimizer_kwargs}")
-    print(f"loss_alpha: {loss_alpha}\tloss_symmetric: {loss_symmetric}")
-    print(f"n_train: {n_train}")
-    print(f"cache_images: {cache_images}")
+    local_params = locals()
+    params_df = pd.DataFrame({"parameter": local_params.keys(), "value": local_params.values()})
+    print(params_df.to_markdown(index=False))
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device: {}".format(device))

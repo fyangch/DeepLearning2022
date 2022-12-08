@@ -7,7 +7,7 @@ aug_transform = Compose([
     RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(1e-10, 0.2)),
     RandomSolarize(0.7, p=0.2),
-])()
+])
 
 optimizer_kwargs = {
     "lr": 1e-3,

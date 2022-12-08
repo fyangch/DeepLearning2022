@@ -260,7 +260,7 @@ class OriginalPatchLocalizationDataset(Dataset):
             Whether to cache the resized images after loading them for the first time or to reload them every time.
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
-        self.image_paths = imagenet_info['images'] if imagenet_info else get_imagenet_info()['images']
+        self.image_paths = imagenet_info['images'].values if imagenet_info is not None else get_imagenet_info()['images'].values
         self.pre_transform = pre_transform if pre_transform else IMAGENET_RESIZE
         self.post_transform = post_transform if post_transform else PATCH_LOCALIZATION_POST
         self.cache_images = cache_images
@@ -355,7 +355,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
         super(OurPatchLocalizationDataset, self).__init__(
-            imagenet_info=imagenet_info if imagenet_info else get_imagenet_info(),
+            imagenet_info=imagenet_info if imagenet_info is not None else get_imagenet_info(),
             pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
             post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
             cache_images=cache_images,
@@ -411,7 +411,7 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
         super(OurPatchLocalizationDatasetv2, self).__init__(
-            imagenet_info=imagenet_info if imagenet_info else get_imagenet_info(),
+            imagenet_info=imagenet_info if imagenet_info is not None else get_imagenet_info(),
             pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
             post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
             cache_images=cache_images,
@@ -468,9 +468,9 @@ class DownstreamDataset(Dataset):
         self.cache_images = cache_images
         self.image_cache = {}
 
-        tiny_imagenet_info = tiny_imagenet_info if tiny_imagenet_info else get_tiny_imagenet_info()
-        self.image_paths = tiny_imagenet_info['images']
-        self.image_labels = tiny_imagenet_info['labels']
+        tiny_imagenet_info = tiny_imagenet_info if tiny_imagenet_info is not None else get_tiny_imagenet_info()
+        self.image_paths = tiny_imagenet_info['images'].values
+        self.image_labels = tiny_imagenet_info['labels'].values
 
     def __len__(self):
         return len(self.image_paths)

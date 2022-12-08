@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 
-from typing import Tuple, List
+from typing import Tuple
 
 
 def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
@@ -132,7 +132,7 @@ class OurPretextNetwork(OriginalPretextNetwork):
 # 4 patch version
 class OurPretextNetworkv2(OriginalPretextNetwork):
     def __init__(self, backbone: str="alexnet"):
-        super(OurPretextNetwork, self).__init__(backbone=backbone)
+        super(OurPretextNetworkv2, self).__init__(backbone=backbone)
 
     def forward(self, 
         center1: torch.Tensor, 
@@ -166,7 +166,7 @@ class DownstreamNetwork(nn.Module):
             embedding_dim (int):
                 Output dimension of the encoder network in the pretext model.
         """
-        super(OriginalPretextNetwork, self).__init__()
+        super(DownstreamNetwork, self).__init__()
 
         # freeze weights of encoder network
         self.pretext_model = pretext_model
@@ -175,7 +175,7 @@ class DownstreamNetwork(nn.Module):
 
         # define classification head
         self.head = nn.Sequential(
-            nn.Linear(2*embedding_dim, 1000),
+            nn.Linear(embedding_dim, 1000),
             nn.ReLU(inplace=True), 
             nn.Linear(1000, 200),
         )
