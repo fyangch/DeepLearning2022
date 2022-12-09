@@ -76,9 +76,9 @@ class AlexNetEncoder(nn.Module):
 class OriginalPretextNetwork(nn.Module):
     def __init__(self, backbone: str="alexnet"):
         super(OriginalPretextNetwork, self).__init__()
-        self.encoder, embedding_dim = get_encoder(backbone)
+        self.encoder, self.embedding_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
-            nn.Linear(2*embedding_dim, 4096),
+            nn.Linear(2*self.embedding_dim, 4096),
             # nn.ReLU(inplace=True), 
             # nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
@@ -157,14 +157,12 @@ class OurPretextNetworkv2(OriginalPretextNetwork):
 
 
 class DownstreamNetwork(nn.Module):
-    def __init__(self, pretext_model: OriginalPretextNetwork, embedding_dim: int=1000):
+    def __init__(self, pretext_model: OriginalPretextNetwork):
         """
         Args:
             pretext_model (OriginalPretextNetwork):
                 The trained self-supervised model that is or inherits from OriginalPretextNetwork.
                 Its encoder will be used by the downstream model with freezed layers.
-            embedding_dim (int):
-                Output dimension of the encoder network in the pretext model.
         """
         super(DownstreamNetwork, self).__init__()
 
@@ -175,7 +173,7 @@ class DownstreamNetwork(nn.Module):
 
         # define classification head
         self.head = nn.Sequential(
-            nn.Linear(embedding_dim, 1000),
+            nn.Linear(self.pretext_model.embedding_dim, 1000),
             nn.ReLU(inplace=True), 
             nn.Linear(1000, 200),
         )

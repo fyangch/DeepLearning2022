@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 import torch.nn as nn
+from torch.nn import CrossEntropyLoss
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Optimizer
 
@@ -11,9 +12,9 @@ import logging
 from typing import Optional, Dict
 
 from src.dataset import OurPatchLocalizationDataset, OriginalPatchLocalizationDataset, \
-    get_imagenet_info
+    get_imagenet_info, DownstreamDataset, get_tiny_imagenet_info
 from src.loss import CustomLoss
-from src.models import OurPretextNetwork, OriginalPretextNetwork
+from src.models import OurPretextNetwork, OriginalPretextNetwork, DownstreamNetwork
 from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
@@ -129,7 +130,7 @@ def train(
         optimizer.step()
 
         # record loss and batch processing time
-        losses.update(loss.item(), center.size(0))
+        losses.update(loss.item(), target.size(0))
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
@@ -174,11 +175,11 @@ def validate(
             curr_time = time.time()
 
             target = target.long().to(device) # cross entropy loss function expects long type
-            
+
             if isinstance(input, list): # pretext tasks
                 if len(input) == 2: # original pretext task
                     center, neighbor = input
-                    output = model(center.to(device), neighbor.to(device)) 
+                    output = model(center.to(device), neighbor.to(device))
                     loss = criterion(output, target)
 
                     # update list of labels and predictions for computation of accuracy
@@ -208,7 +209,7 @@ def validate(
                 all_labels.append(target.detach().cpu().numpy())
 
             # record loss and batch processing time
-            losses.update(loss.item(), center.size(0))
+            losses.update(loss.item(), target.size(0))
             batch_time.update(time.time() - curr_time)
 
             # log after every `log_frequency` batches
@@ -237,30 +238,31 @@ def validate(
 def run_pretext(
         experiment_id: str,
         aug_transform: nn.Module,
-        optimizer_kwargs: Dict = None,
+        pretext_type: str = "our",
         loss_alpha: float = 1,
         loss_symmetric: bool = True,
-        pretext_type: str = "our",
+        imagenet_info: pd.DataFrame = None,
         n_train: int = 46000,
-        cache_images: bool = True,
+        optimizer_kwargs: Dict = None,
         num_epochs: int = 100,
         batch_size: int = 64,
         num_workers: int = 4,
         log_frequency: int = 100,
+        cache_images: bool = True,
         resume_from_checkpoint: bool = False,
 ) -> None:
-
     # print params used
-    print("="*50)
-    local_params = locals()
-    params_df = pd.DataFrame({"parameter": local_params.keys(), "value": local_params.values()})
+    print("=" * 50)
+    params = [item for item in locals().items() if item[0] not in ["tiny_imagenet_info"]]
+    params_df = pd.DataFrame({"parameter": [p[0] for p in params], "value": [p[1] for p in params]})
     print(params_df.to_markdown(index=False))
 
+    # use gpu if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device: {}".format(device))
 
-    # always use whole dataset
-    imagenet_info = get_imagenet_info()
+    # if dataset not specified use whole dataset
+    imagenet_info = imagenet_info if imagenet_info is not None else get_imagenet_info()
 
     # initialize datasets and model
     if pretext_type.lower() == "our":
@@ -279,6 +281,68 @@ def run_pretext(
 
     # initialize loss
     criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
+
+    # initialize optimizer
+    if optimizer_kwargs is None:
+        optimizer_kwargs = {}
+    optimizer = torch.optim.Adam(model.parameters(), **optimizer_kwargs)
+
+    # train model
+    train_model(
+        experiment_id=experiment_id,
+        model=model,
+        ds_train=ds_train,
+        ds_val=ds_val,
+        device=device,
+        criterion=criterion,
+        optimizer=optimizer,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        log_frequency=log_frequency,
+        resume_from_checkpoint=resume_from_checkpoint,
+    )
+
+
+def run_downstream(
+        experiment_id: str,
+        pretext_model: OriginalPretextNetwork,
+        tiny_imagenet_info: pd.DataFrame = None,
+        n_train: int = 9000,
+        optimizer_kwargs: dict = None,
+        num_epochs: int = 100,
+        batch_size: int = 64,
+        num_workers: int = 4,
+        log_frequency: int = 100,
+        cache_images: bool = True,
+        resume_from_checkpoint: bool = False,
+) -> None:
+
+    # print params used
+    print("=" * 50)
+    params = [item for item in locals().items() if item[0] not in ["pretext_model", "tiny_imagenet_info"]]
+    params_df = pd.DataFrame({"parameter": [p[0] for p in params], "value": [p[1] for p in params]})
+    print(params_df.to_markdown(index=False))
+
+    # use gpu if available
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Device: {}".format(device))
+
+    # if dataset not specified use whole dataset
+    tiny_imagenet_info = tiny_imagenet_info if tiny_imagenet_info is not None else get_tiny_imagenet_info()
+
+    # initialize datasets
+    ds_train = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[:n_train], cache_images=cache_images)
+    ds_val = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[n_train:], cache_images=cache_images)
+
+    # initialize model
+    model = DownstreamNetwork(pretext_model=pretext_model)
+
+    print("Number of training images: \t {}".format(len(ds_train)))
+    print("Number of validation images: \t {}".format(len(ds_val)))
+
+    # initialize loss
+    criterion = CrossEntropyLoss()
 
     # initialize optimizer
     if optimizer_kwargs is None:
