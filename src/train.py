@@ -33,13 +33,15 @@ def train_model(
     log_frequency: int=10,
     fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
     seed: int=42,
+    logger: logging.Logger = None,
     ) -> None:
     """ Training loop. """
     if fix_seed:
         fix_all_seeds(seed=seed)
 
     # create logger with file and console stream handlers
-    logger = create_logger(experiment_id)
+    if logger is None:
+        logger = create_logger(experiment_id)
 
     # create data loaders
     train_loader = DataLoader(ds_train, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -251,15 +253,19 @@ def run_pretext(
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
 ) -> None:
+
+    # initialize logger
+    logger = create_logger(experiment_id)
+
     # print params used
-    print("=" * 50)
+    logger.info("=" * 50)
     params = [item for item in locals().items() if item[0] not in ["tiny_imagenet_info"]]
     params_df = pd.DataFrame({"parameter": [p[0] for p in params], "value": [p[1] for p in params]})
-    print(params_df.to_markdown(index=False))
+    logger.info(params_df.to_markdown(index=False))
 
     # use gpu if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Device: {}".format(device))
+    logger.info("Device: {}".format(device))
 
     # if dataset not specified use whole dataset
     imagenet_info = imagenet_info if imagenet_info is not None else get_imagenet_info()
@@ -276,8 +282,8 @@ def run_pretext(
         ds_val = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OriginalPretextNetwork(backbone="resnet18")
 
-    print("Number of training images: \t {}".format(len(ds_train)))
-    print("Number of validation images: \t {}".format(len(ds_val)))
+    logger.info("Number of training images: \t {}".format(len(ds_train)))
+    logger.info("Number of validation images: \t {}".format(len(ds_val)))
 
     # initialize loss
     criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
@@ -301,6 +307,7 @@ def run_pretext(
         num_workers=num_workers,
         log_frequency=log_frequency,
         resume_from_checkpoint=resume_from_checkpoint,
+        logger=logger,
     )
 
 
@@ -318,15 +325,18 @@ def run_downstream(
         resume_from_checkpoint: bool = False,
 ) -> None:
 
+    # initialize logger
+    logger = create_logger(experiment_id)
+
     # print params used
-    print("=" * 50)
+    logger.info("=" * 50)
     params = [item for item in locals().items() if item[0] not in ["pretext_model", "tiny_imagenet_info"]]
     params_df = pd.DataFrame({"parameter": [p[0] for p in params], "value": [p[1] for p in params]})
-    print(params_df.to_markdown(index=False))
+    logger.info(params_df.to_markdown(index=False))
 
     # use gpu if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Device: {}".format(device))
+    logger.info("Device: {}".format(device))
 
     # if dataset not specified use whole dataset
     tiny_imagenet_info = tiny_imagenet_info if tiny_imagenet_info is not None else get_tiny_imagenet_info()
@@ -338,8 +348,8 @@ def run_downstream(
     # initialize model
     model = DownstreamNetwork(pretext_model=pretext_model)
 
-    print("Number of training images: \t {}".format(len(ds_train)))
-    print("Number of validation images: \t {}".format(len(ds_val)))
+    logger.info("Number of training images: \t {}".format(len(ds_train)))
+    logger.info("Number of validation images: \t {}".format(len(ds_val)))
 
     # initialize loss
     criterion = CrossEntropyLoss()
@@ -363,6 +373,7 @@ def run_downstream(
         num_workers=num_workers,
         log_frequency=log_frequency,
         resume_from_checkpoint=resume_from_checkpoint,
+        logger=logger,
     )
 
 
