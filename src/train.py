@@ -129,7 +129,7 @@ def train(
         optimizer.step()
 
         # record loss and batch processing time
-        losses.update(loss.item(), center.size(0))
+        losses.update(loss.item(), target.size(0))
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
@@ -208,7 +208,7 @@ def validate(
                 all_labels.append(target.detach().cpu().numpy())
 
             # record loss and batch processing time
-            losses.update(loss.item(), center.size(0))
+            losses.update(loss.item(), target.size(0))
             batch_time.update(time.time() - curr_time)
 
             # log after every `log_frequency` batches
