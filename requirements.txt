@@ -6,3 +6,4 @@ pandas
 torch
 matplotlib
 tqdm
+tabulate
