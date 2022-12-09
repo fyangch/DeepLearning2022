@@ -194,11 +194,6 @@ class RelicAugmentationCreator:
         return func
 
 
-# tiny-imagenet-200 raw image transform
-TINY_IMAGENET_RESIZE = Compose([
-    Resize(224),
-])
-
 # from https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html#load-data
 # ImageNet raw image transform
 IMAGENET_RESIZE = Compose([
@@ -215,6 +210,12 @@ IMAGENET_NORMALIZATION_PARAMS = {
 # patch localization on imagenet post transform: 1. drop color channels (chromatic aberration) 2. normalize image
 PATCH_LOCALIZATION_POST = Compose([
     ColorProjection(),
+    Normalize(**IMAGENET_NORMALIZATION_PARAMS),
+])
+
+# tiny-imagenet-200 raw image transform
+TINY_IMAGENET_TRANSFORM = Compose([
+    Resize(224),
     Normalize(**IMAGENET_NORMALIZATION_PARAMS),
 ])
 

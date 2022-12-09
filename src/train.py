@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -9,14 +10,15 @@ import logging
 
 from typing import Optional, Dict
 
-from src.dataset import OurPatchLocalizationDataset, sample_image_paths
+from src.dataset import OurPatchLocalizationDataset, OriginalPatchLocalizationDataset, \
+    get_imagenet_info
 from src.loss import CustomLoss
 from src.models import OurPretextNetwork, OriginalPretextNetwork
 from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
 def train_model(
-    experiment_id: str, # e.g. "our_pretext_42"
+    experiment_id: str,
     model: nn.Module,
     ds_train: Dataset,
     ds_val: Dataset,
@@ -104,18 +106,22 @@ def train(
 
         target = target.long().to(device) # cross entropy loss function expects long type
 
-        if len(input) == 2: # original pretext task
-            center, neighbor = input
-            output = model(center.to(device), neighbor.to(device)) 
+        if isinstance(input, list): # pretext tasks
+            if len(input) == 2: # original pretext task
+                center, neighbor = input
+                output = model(center.to(device), neighbor.to(device)) 
+                loss = criterion(output, target)
+            elif len(input) == 3: # our pretext task with 3 patches
+                center, neighbor1, neighbor2 = input
+                output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
+                loss = criterion(output1, output2, target)
+            else: # our pretext task with 4 patches
+                center1, neighbor1, center2, neighbor2 = input
+                output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                loss = criterion(output1, output2, target)
+        else: # downstream task
+            output = model(input.to(device))
             loss = criterion(output, target)
-        elif len(input) == 3: # our pretext task with 3 patches
-            center, neighbor1, neighbor2 = input
-            output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
-            loss = criterion(output1, output2, target)
-        else: # our pretext task with 4 patches
-            center1, neighbor1, center2, neighbor2 = input
-            output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
-            loss = criterion(output1, output2, target)
 
         # compute gradient and do update step
         optimizer.zero_grad()
@@ -169,28 +175,36 @@ def validate(
 
             target = target.long().to(device) # cross entropy loss function expects long type
             
-            if len(input) == 2: # original pretext task
-                center, neighbor = input
-                output = model(center.to(device), neighbor.to(device)) 
+            if isinstance(input, list): # pretext tasks
+                if len(input) == 2: # original pretext task
+                    center, neighbor = input
+                    output = model(center.to(device), neighbor.to(device)) 
+                    loss = criterion(output, target)
+
+                    # update list of labels and predictions for computation of accuracy
+                    all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
+                    all_labels.append(target.detach().cpu().numpy())
+                else: # our pretext tasks
+                    if len(input) == 3: # our pretext task with 3 patches
+                        center, neighbor1, neighbor2 = input
+                        output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
+                        loss = criterion(output1, output2, target)
+                    else: # our pretext task with 4 patches
+                        center1, neighbor1, center2, neighbor2 = input
+                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                        loss = criterion(output1, output2, target)
+
+                    # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
+                    all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
+                    all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
+                    all_labels.append(target.detach().cpu().numpy())
+                    all_labels.append(target.detach().cpu().numpy())
+            else: # downstream task
+                output = model(input.to(device))
                 loss = criterion(output, target)
 
                 # update list of labels and predictions for computation of accuracy
                 all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
-                all_labels.append(target.detach().cpu().numpy())
-            else: # our pretext tasks
-                if len(input) == 3: # our pretext task with 3 patches
-                    center, neighbor1, neighbor2 = input
-                    output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
-                    loss = criterion(output1, output2, target)
-                else: # our pretext task with 4 patches
-                    center1, neighbor1, center2, neighbor2 = input
-                    output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
-                    loss = criterion(output1, output2, target)
-
-                # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
-                all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
-                all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
-                all_labels.append(target.detach().cpu().numpy())
                 all_labels.append(target.detach().cpu().numpy())
 
             # record loss and batch processing time
@@ -238,32 +252,26 @@ def run_pretext(
 
     # print params used
     print("="*50)
-    print(f"running {pretext_type} pretext task with the following parameters:")
-    print(f"experiment_id: {experiment_id}")
-    print(f"aug_transform: {aug_transform}")
-    print(f"optimizer_kwargs: {optimizer_kwargs}")
-    print(f"loss_alpha: {loss_alpha}\tloss_symmetric: {loss_symmetric}")
-    print(f"n_train: {n_train}")
-    print(f"cache_images: {cache_images}")
+    local_params = locals()
+    params_df = pd.DataFrame({"parameter": local_params.keys(), "value": local_params.values()})
+    print(params_df.to_markdown(index=False))
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device: {}".format(device))
 
     # always use whole dataset
-    img_paths = sample_image_paths(frac=1.0)
+    imagenet_info = get_imagenet_info()
 
     # initialize datasets and model
     if pretext_type.lower() == "our":
-        ds_train = OurPatchLocalizationDataset(image_paths=img_paths[:n_train], aug_transform=aug_transform,
+        ds_train = OurPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
                                                cache_images=cache_images)
-        ds_val = OurPatchLocalizationDataset(image_paths=img_paths[n_train:], aug_transform=aug_transform,
+        ds_val = OurPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
                                              cache_images=cache_images)
         model = OurPretextNetwork(backbone="resnet18")
     else:
-        ds_train = OurPatchLocalizationDataset(image_paths=img_paths[:n_train], aug_transform=aug_transform,
-                                               cache_images=cache_images)
-        ds_val = OurPatchLocalizationDataset(image_paths=img_paths[n_train:], aug_transform=aug_transform,
-                                             cache_images=cache_images)
+        ds_train = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
+        ds_val = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OriginalPretextNetwork(backbone="resnet18")
 
     print("Number of training images: \t {}".format(len(ds_train)))

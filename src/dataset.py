@@ -14,7 +14,7 @@ from torchvision.transforms import Compose, RandomCrop, CenterCrop, Resize
 from typing import List, Tuple
 
 # project imports
-from src.transforms import IMAGENET_RESIZE, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST, RANDOM_JITTER_CROP, GRID_SIZE, \
+from src.transforms import IMAGENET_RESIZE, TINY_IMAGENET_TRANSFORM, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST, RANDOM_JITTER_CROP, GRID_SIZE, \
     RelicAugmentationCreator
 
 
@@ -24,14 +24,14 @@ def get_imagenet_info(
         recompute: bool = False,
 ) -> pd.DataFrame:
     """
-    Helper function to get information (path, label, n_channels) about every image in the imagenet dataset.
+    Helper function to get information (path, label, n_channels) about every image in the imagenet validation dataset.
 
     Parameters
     ----------
     data_dir
         Path to the 'data' directory. The 'data' directory should contain the following two directories:
-        - 'ILSVRC2012_img_val': Containing the validation set images from the 2012 ILSVRC
-        - 'ILSVRC2012_devkit_t12': Containing the developer kit from the 2012 ILSVRC
+        - 'ILSVRC2012_img_val': Containing the validation set images from the 2012 ILSVRC (https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar)
+        - 'ILSVRC2012_devkit_t12': Containing the developer kit from the 2012 ILSVRC (https://image-net.org/data/ILSVRC/2012/ILSVRC2012_devkit_t12.tar.gz)
     savefile
         Path to where the imagenet_info pandas DataFrame should be loaded from and saved to.
     recompute
@@ -43,13 +43,17 @@ def get_imagenet_info(
         A pandas DataFrame containing the imagenet information.
     """
 
+    # check if imagenet_info already in data folder
+    if not recompute and os.path.isfile(savefile):
+        # load df
+        df = pd.read_csv(savefile, index_col=0)
+        # Only consider valid RGB images
+        df = df[df['is_rgb'] == 1]
+        return df
+
     # get image directory and path to labels
     image_dir = os.path.join(data_dir, "ILSVRC2012_img_val")
     label_path = os.path.join(data_dir, "ILSVRC2012_devkit_t12", "data", "ILSVRC2012_validation_ground_truth.txt")
-
-    # check if imagenet_info already in data folder
-    if not recompute and os.path.isfile(savefile):
-        return pd.read_csv(savefile, index_col=0)
 
     # Collect every class label for each image
     labels = pd.read_csv(label_path, header=None).values.flatten()
@@ -75,7 +79,76 @@ def get_imagenet_info(
     # save imagenet info in data folder
     df.to_csv(savefile)
 
+    # Only consider valid RGB images
+    df = df[df['is_rgb'] == 1]
+
     return df
+
+
+def get_tiny_imagenet_info(
+        data_dir: str = "data",
+        savefile: str = os.path.join("data", "tiny_imagenet_info.csv"),
+        recompute: bool = False,
+) -> pd.DataFrame:
+    """
+    Helper function to get information (path, label, n_channels) about every image in the tiny imagenet validation dataset.
+
+    Parameters
+    ----------
+    data_dir
+        Path to the 'data' directory. The 'data' directory should contain the following two directory:
+        - 'tiny-imagenet-200': Containing the Tiny ImageNet dataset (https://image-net.org/data/tiny-imagenet-200.zip)
+    savefile
+        Path to where the tiny_imagenet_info pandas DataFrame should be loaded from and saved to.
+    recompute
+        Boolean indicating whether the tiny_imagenet_info should be recomputed even if it already exists.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame containing the tiny imagenet information.
+    """
+
+    # check if imagenet_info already in data folder
+    if not recompute and os.path.isfile(savefile):
+        annotations_df = pd.read_csv(savefile, index_col=0)
+        # Only consider valid RGB images
+        annotations_df = annotations_df[annotations_df['is_rgb'] == 1]
+        return annotations_df
+
+    # get image directory and path to labels
+    image_dir = os.path.join(data_dir, "tiny-imagenet-200", "val", "images")
+    annotations_path = os.path.join(data_dir, "tiny-imagenet-200", "val", "val_annotations.txt")
+
+    # load annotations file into pd dataframe
+    annotations_df = pd.read_csv(annotations_path, sep='\t', header=None, names=['File', 'Class', 'X', 'Y', 'H', 'W'])
+    classes = np.sort(annotations_df['Class'].unique())
+    str_to_int_class = {s: idx for idx, s in enumerate(classes)}
+    annotations_df['labels'] = annotations_df['Class'].apply(lambda x: str_to_int_class[x])
+
+    # Gather all image titles
+    image_paths = [str(os.path.join(image_dir, image_title)) for image_title in annotations_df['File']]
+
+    # Gather filter out non-RGB images (grayscale and RGBA)
+    is_rgb = []
+    for image_path in image_paths:
+        image = torchvision.io.read_image(image_path)
+        if len(image.shape) < 3 or image.shape[0] != 3:
+            is_rgb.append(0)
+        else:
+            is_rgb.append(1)
+
+    # Create a Dataframe with the image titles, labels and validity of image format
+    annotations_df['is_rgb'] = is_rgb
+    annotations_df['images'] = image_paths
+
+    # save imagenet info in data folder
+    annotations_df.to_csv(savefile)
+
+    # Only consider valid RGB images
+    annotations_df = annotations_df[annotations_df['is_rgb'] == 1]
+
+    return annotations_df
 
 
 def sample_image_paths(
@@ -169,7 +242,7 @@ class OriginalPatchLocalizationDataset(Dataset):
 
     def __init__(
             self,
-            image_paths: List[str],
+            imagenet_info: pd.DataFrame = None,
             pre_transform: nn.Module = None,
             post_transform: nn.Module = None,
             cache_images: bool = False,
@@ -177,8 +250,8 @@ class OriginalPatchLocalizationDataset(Dataset):
         """
         Parameters
         ----------
-        image_paths
-            A list of image paths returned by the sample_image_paths function.
+        imagenet_info
+            A pandas dataframe containing imagenet information returned by the get_imagenet_info function.
         pre_transform
             A torchvision transform that will be applied BEFORE caching the image.
         post_transform
@@ -187,7 +260,7 @@ class OriginalPatchLocalizationDataset(Dataset):
             Whether to cache the resized images after loading them for the first time or to reload them every time.
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
-        self.image_paths = image_paths
+        self.image_paths = imagenet_info['images'].values if imagenet_info is not None else get_imagenet_info()['images'].values
         self.pre_transform = pre_transform if pre_transform else IMAGENET_RESIZE
         self.post_transform = post_transform if post_transform else PATCH_LOCALIZATION_POST
         self.cache_images = cache_images
@@ -198,6 +271,23 @@ class OriginalPatchLocalizationDataset(Dataset):
 
     def __getitem__(self, idx: int):
 
+        # load image
+        image = self.load_image(idx)
+
+        # randomly select a label (between 0 and 7)
+        label = torch.randint(7, (1,)).item()
+        # extract center patch and neighbor patch corresponding to label
+        center_patch, neighbor_patch = extract_patches(image, label)
+
+        # convert patches
+        features = self.convert_patches(center_patch, neighbor_patch)
+
+        # apply post transform to each patch
+        features = [self.post_transform(patch) for patch in features]
+
+        return features, label
+
+    def load_image(self, idx):
         # check whether caching is activated and idx is in cache
         if self.cache_images and idx in self.image_cache:
             # load from cache and convert to float
@@ -215,17 +305,7 @@ class OriginalPatchLocalizationDataset(Dataset):
 
             # convert image to float
             image = image / 255
-
-        # randomly select a label (between 0 and 7)
-        label = torch.randint(7, (1,)).item()
-        # extract center patch and neighbor patch corresponding to label
-        center_patch, neighbor_patch = extract_patches(image, label)
-        # convert patches
-        features = self.convert_patches(center_patch, neighbor_patch)
-        # apply post transform to each patch
-        features = [self.post_transform(patch) for patch in features]
-
-        return features, label
+        return image
 
     def convert_patches(self, center_patch: torch.Tensor, neighbor_patch: torch.Tensor) -> List[torch.Tensor]:
         """
@@ -253,7 +333,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
 
     def __init__(
             self,
-            image_paths: List[str],
+            imagenet_info: List[str],
             pre_transform: nn.Module = None,
             aug_transform: nn.Module = None,
             post_transform: nn.Module = None,
@@ -262,7 +342,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
         """
         Parameters
         ----------
-        image_paths
+        imagenet_info
             A list of image paths returned by the sample_image_paths function.
         pre_transform
             A torchvision transform that is applied to every raw image BEFORE the augmentation.
@@ -275,7 +355,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
         super(OurPatchLocalizationDataset, self).__init__(
-            image_paths=image_paths,
+            imagenet_info=imagenet_info if imagenet_info is not None else get_imagenet_info(),
             pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
             post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
             cache_images=cache_images,
@@ -309,7 +389,7 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
 
     def __init__(
             self,
-            image_paths: List[str],
+            imagenet_info: List[str],
             pre_transform: nn.Module = None,
             aug_transform_creator=None,
             post_transform: nn.Module = None,
@@ -318,7 +398,7 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
         """
         Parameters
         ----------
-        image_paths
+        imagenet_info
             A list of image paths returned by the sample_image_paths function.
         pre_transform
             A torchvision transform that is applied to every raw image BEFORE the augmentation.
@@ -331,7 +411,7 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
         super(OurPatchLocalizationDatasetv2, self).__init__(
-            image_paths=image_paths,
+            imagenet_info=imagenet_info if imagenet_info is not None else get_imagenet_info(),
             pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
             post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
             cache_images=cache_images,
@@ -359,3 +439,69 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
         # augment the center and neighbor patch with both augmentations separately
         return [aug_transform1(center_patch), aug_transform1(neighbor_patch), aug_transform2(center_patch),
                 aug_transform2(neighbor_patch)]
+
+
+class DownstreamDataset(Dataset):
+    """
+    Dataset for the downstream image recognition task.
+    """
+
+    def __init__(
+            self,
+            tiny_imagenet_info: pd.DataFrame = None,
+            transform: nn.Module = None,
+            cache_images: bool = False,
+    ):
+        """
+        Parameters
+        ----------
+        tiny_imagenet_info
+            A pandas dataframe containing information about Tiny ImageNet returned by the get_tiny_imagenet_info function.
+        transform
+            A torchvision transform that will be applied to every image.
+        cache_images
+            Whether to cache the resized images after loading them for the first time or to reload them every time.
+            Aims to reduce latency of reloading images at cost of more memory usage.
+        """
+
+        self.transform = transform if transform else TINY_IMAGENET_TRANSFORM
+        self.cache_images = cache_images
+        self.image_cache = {}
+
+        tiny_imagenet_info = tiny_imagenet_info if tiny_imagenet_info is not None else get_tiny_imagenet_info()
+        self.image_paths = tiny_imagenet_info['images'].values
+        self.image_labels = tiny_imagenet_info['labels'].values
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx: int):
+
+        # load image
+        image = self.load_image(idx)
+
+        # transform image
+        image = self.transform(image)
+
+        # load label
+        label = self.image_labels[idx]
+
+        return image, label
+
+    def load_image(self, idx):
+        # check whether caching is activated and idx is in cache
+        if self.cache_images and idx in self.image_cache:
+            # load from cache and convert to float
+            image = self.image_cache[idx] / 255
+        else:
+            # load image from path
+            image_path = self.image_paths[idx]
+            image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
+
+            if self.cache_images:
+                # if caching is activated, save uint8 image in cache
+                self.image_cache[idx] = image
+
+            # convert image to float
+            image = image / 255
+        return image
