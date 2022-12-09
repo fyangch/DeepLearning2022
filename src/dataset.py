@@ -266,6 +266,10 @@ class OriginalPatchLocalizationDataset(Dataset):
         self.cache_images = cache_images
         self.image_cache = {}
 
+        # if cache_images load all images into cache
+        if self.cache_images:
+            self.populate_cache()
+
     def __len__(self):
         return len(self.image_paths)
 
@@ -287,11 +291,19 @@ class OriginalPatchLocalizationDataset(Dataset):
 
         return features, label
 
+    def populate_cache(self):
+        # load all images into cache
+        for idx, image_path in enumerate(self.image_paths):
+            image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
+            # resize image
+            image = self.pre_transform(image)
+            self.image_cache[idx] = image
+
     def load_image(self, idx):
         # check whether caching is activated and idx is in cache
-        if self.cache_images and idx in self.image_cache:
+        if self.cache_images:
             # load from cache and convert to float
-            image = self.image_cache[idx] / 255
+            image = self.image_cache[idx]
         else:
             # load image from path
             image_path = self.image_paths[idx]
@@ -299,12 +311,9 @@ class OriginalPatchLocalizationDataset(Dataset):
             # resize image
             image = self.pre_transform(image)
 
-            if self.cache_images:
-                # if caching is activated, save uint8 image in cache
-                self.image_cache[idx] = image
+        # convert image to float
+        image = image / 255
 
-            # convert image to float
-            image = image / 255
         return image
 
     def convert_patches(self, center_patch: torch.Tensor, neighbor_patch: torch.Tensor) -> List[torch.Tensor]:
@@ -472,6 +481,10 @@ class DownstreamDataset(Dataset):
         self.image_paths = tiny_imagenet_info['images'].values
         self.image_labels = tiny_imagenet_info['labels'].values
 
+        # if cache_images load all images into cache
+        if self.cache_images:
+            self.populate_cache()
+
     def __len__(self):
         return len(self.image_paths)
 
@@ -488,20 +501,22 @@ class DownstreamDataset(Dataset):
 
         return image, label
 
+    def populate_cache(self):
+        # load all images into cache
+        for idx, image_path in enumerate(self.image_paths):
+            self.image_cache[idx] = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
+
     def load_image(self, idx):
         # check whether caching is activated and idx is in cache
-        if self.cache_images and idx in self.image_cache:
+        if self.cache_images:
             # load from cache and convert to float
-            image = self.image_cache[idx] / 255
+            image = self.image_cache[idx]
         else:
             # load image from path
             image_path = self.image_paths[idx]
             image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
 
-            if self.cache_images:
-                # if caching is activated, save uint8 image in cache
-                self.image_cache[idx] = image
+        # convert image to float
+        image = image / 255
 
-            # convert image to float
-            image = image / 255
         return image
