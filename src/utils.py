@@ -103,6 +103,16 @@ def load_checkpoint(experiment_id: str, model: nn.Module, optimizer: Optimizer) 
     return model, optimizer, next_epoch, best_acc
 
 
+def load_best_model(experiment_id: str, model: nn.Module) -> nn.Module:
+    """Load the model weights that resulted in the highest validation accuracy in a previous experiment."""
+    # load best model
+    filename = os.path.join("out", experiment_id, "best_model.pth.tar")
+    model_state_dict = torch.load(filename, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    # model_state_dict = {"state_dict": model_state_dict}
+    model.load_state_dict(model_state_dict)
+    return model
+
+
 def save_model(model: nn.Module, experiment_id: str, filename: str):
     experiment_dir = os.path.join("out", experiment_id)
     torch.save(model.state_dict(), os.path.join(experiment_dir, filename))
