@@ -10,12 +10,12 @@ aug_transform = Compose([
 ])
 
 optimizer_kwargs = {
-    "lr": 1e-3,
+    "lr": 1e-4,
     "weight_decay": 0,
 }
 
 run_pretext(
-    experiment_id="test_run",
+    experiment_id="HERE_YOUR_EXPERIMENT_ID",
     aug_transform=aug_transform,
     optimizer_kwargs=optimizer_kwargs,
     loss_alpha=1,
