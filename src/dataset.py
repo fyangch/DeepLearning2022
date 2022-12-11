@@ -501,20 +501,19 @@ class DownstreamDataset(Dataset):
     def populate_cache(self):
         # load all images into cache
         for idx, image_path in enumerate(self.image_paths):
-            image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB) / 255
-            # store resized image
-            self.image_cache[idx] = self.transform(image)
+            # store image
+            self.image_cache[idx] = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
 
     def load_image(self, idx):
-        # check whether caching is activated and idx is in cache
+        # check whether caching is activated
         if self.cache_images:
             # load from cache and convert to float
-            image = self.image_cache[idx]
+            image = self.image_cache[idx] / 255
         else:
             # load image from path
             image_path = self.image_paths[idx]
             image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB) / 255
-            # resize image
-            image = self.transform(image)
+        # resize image
+        image = self.transform(image)
 
         return image
