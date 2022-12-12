@@ -11,6 +11,8 @@ def create_optuna_objective(
     Create the objective function used for the optuna hyperparameter search.
     """
 
+    experiment_id = RUN_PARAMS["experiment_id"]
+
     def objective(trial):
 
         # add trial kwargs to RUN_DOWNSTREAM_PARAMS
@@ -42,7 +44,7 @@ def create_optuna_objective(
 
         # modify experiment id to have unique id for each experiment run during optuna search
         current_time = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
-        RUN_PARAMS["experiment_id"] = RUN_PARAMS["experiment_id"] + "_" + current_time
+        RUN_PARAMS["experiment_id"] = experiment_id + "_" + current_time
 
         # run trial
         if "pretext_model" in RUN_PARAMS:
