@@ -114,11 +114,11 @@ class RelicAugmentationCreator:
     """
 
     def __init__(self,
-                 min_crop_scale: float = 0.8,
-                 brightness: float = 0.1,
-                 contrast: float = 0.1,
-                 saturation: float = 0.1,
-                 hue: float = 0.1,
+                 min_crop_scale: float = 0.32,
+                 brightness: float = 0.8,
+                 contrast: float = 0.8,
+                 saturation: float = 0.8,
+                 hue: float = 0.2,
                  grayscale_prob: float = 0.05,
                  kernel_size: int = 23,
                  sigma_max: float = 0.2,
