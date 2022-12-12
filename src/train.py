@@ -34,7 +34,7 @@ def train_model(
     fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
     seed: int=42,
     logger: logging.Logger = None,
-    ) -> None:
+    ) -> float:
     """ Training loop. """
     if fix_seed:
         fix_all_seeds(seed=seed)
@@ -82,6 +82,9 @@ def train_model(
     # save final model
     logger.info(f"Saving final model to ./out/{experiment_id}/final_model.pth.tar")
     save_model(model, experiment_id, "final_model.pth.tar")
+
+    # return best accuracy (for optuna)
+    return best_acc
     
 
 def train(
@@ -252,7 +255,7 @@ def run_pretext(
         log_frequency: int = 100,
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
-) -> None:
+) -> float:
 
     # initialize logger
     logger = create_logger(experiment_id)
@@ -293,7 +296,7 @@ def run_pretext(
     optimizer = torch.optim.Adam(model.parameters(), **optimizer_kwargs)
 
     # train model
-    train_model(
+    best_acc = train_model(
         experiment_id=experiment_id,
         model=model,
         ds_train=ds_train,
@@ -309,11 +312,14 @@ def run_pretext(
         logger=logger,
     )
 
+    return best_acc
+
 
 def run_downstream(
         experiment_id: str,
         pretext_model: OriginalPretextNetwork,
         tiny_imagenet_info: pd.DataFrame = None,
+        use_aug_transform: bool = False,
         n_train: int = 9000,
         optimizer_kwargs: dict = None,
         num_epochs: int = 100,
@@ -322,7 +328,7 @@ def run_downstream(
         log_frequency: int = 100,
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
-) -> None:
+) -> float:
 
     # initialize logger
     logger = create_logger(experiment_id)
@@ -340,8 +346,10 @@ def run_downstream(
     tiny_imagenet_info = tiny_imagenet_info if tiny_imagenet_info is not None else get_tiny_imagenet_info()
 
     # initialize datasets
-    ds_train = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[:n_train], cache_images=cache_images)
-    ds_val = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[n_train:], cache_images=cache_images)
+    ds_train = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[:n_train], use_aug_transform=use_aug_transform,
+                                 cache_images=cache_images)
+    ds_val = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[n_train:], use_aug_transform=use_aug_transform,
+                               cache_images=cache_images)
 
     # initialize model
     model = DownstreamNetwork(pretext_model=pretext_model)
@@ -358,7 +366,7 @@ def run_downstream(
     optimizer = torch.optim.Adam(model.parameters(), **optimizer_kwargs)
 
     # train model
-    train_model(
+    best_acc = train_model(
         experiment_id=experiment_id,
         model=model,
         ds_train=ds_train,
@@ -373,6 +381,8 @@ def run_downstream(
         resume_from_checkpoint=resume_from_checkpoint,
         logger=logger,
     )
+
+    return best_acc
 
 
 # adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py

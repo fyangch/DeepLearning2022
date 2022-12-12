@@ -460,7 +460,7 @@ class DownstreamDataset(Dataset):
             self,
             tiny_imagenet_info: pd.DataFrame = None,
             resize_transform: nn.Module = None,
-            aug_transform: nn.Module = None,
+            use_aug_transform: bool = False,
             cache_images: bool = False,
     ):
         """
@@ -470,15 +470,16 @@ class DownstreamDataset(Dataset):
             A pandas dataframe containing information about Tiny ImageNet returned by the get_tiny_imagenet_info function.
         resize_transform
             A torchvision transform that will be applied to every image.
-        aug_transform
-            A torchvision transform that will be applied to every image right after reading (uint8 format).
+        use_aug_transform
+            Whether to use AutoAugment to randomly augment dataset.
         cache_images
             Whether to cache the resized images after loading them for the first time or to reload them every time.
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
 
         self.resize_transform = resize_transform if resize_transform else TINY_IMAGENET_TRANSFORM
-        self.aug_transform = aug_transform if aug_transform else IMAGENET_AUG_TRANSFORM
+        self.aug_transform = IMAGENET_AUG_TRANSFORM
+        self.use_aug_transform = use_aug_transform
         self.cache_images = cache_images
         self.image_cache = {}
 
@@ -512,14 +513,18 @@ class DownstreamDataset(Dataset):
     def load_image(self, idx):
         # check whether caching is activated
         if self.cache_images:
-            # load from cache and convert to float
+            # load image from cache
             image = self.image_cache[idx]
-            image = self.aug_transform(image) / 255
         else:
             # load image from path
             image_path = self.image_paths[idx]
             image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
-            image = self.aug_transform(image) / 255
+
+        # augment uint8 image
+        if self.use_aug_transform:
+            image = self.aug_transform(image)
+        # convert image to float
+        image = image / 255
         # resize image
         image = self.resize_transform(image)
 
