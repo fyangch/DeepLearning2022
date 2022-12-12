@@ -328,7 +328,6 @@ def run_downstream(
     logger = create_logger(experiment_id)
 
     # print params used
-    logger.info("=" * 50)
     params = [item for item in locals().items() if item[0] not in ["pretext_model", "tiny_imagenet_info"]]
     params_df = pd.DataFrame({"parameter": [p[0] for p in params], "value": [p[1] for p in params]})
     logger.info(params_df.to_markdown(index=False))
