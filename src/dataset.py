@@ -14,8 +14,9 @@ from torchvision.transforms import Compose, RandomCrop, CenterCrop, Resize
 from typing import List, Tuple
 
 # project imports
-from src.transforms import IMAGENET_RESIZE, TINY_IMAGENET_TRANSFORM, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST, RANDOM_JITTER_CROP, GRID_SIZE, \
-    RelicAugmentationCreator
+from src.transforms import IMAGENET_RESIZE, TINY_IMAGENET_TRANSFORM, RELIC_AUG_TRANSFORM, PATCH_LOCALIZATION_POST, \
+    RANDOM_JITTER_CROP, GRID_SIZE, \
+    RelicAugmentationCreator, IMAGENET_AUG_TRANSFORM
 
 
 def get_imagenet_info(
@@ -458,7 +459,8 @@ class DownstreamDataset(Dataset):
     def __init__(
             self,
             tiny_imagenet_info: pd.DataFrame = None,
-            transform: nn.Module = None,
+            resize_transform: nn.Module = None,
+            aug_transform: nn.Module = None,
             cache_images: bool = False,
     ):
         """
@@ -466,14 +468,17 @@ class DownstreamDataset(Dataset):
         ----------
         tiny_imagenet_info
             A pandas dataframe containing information about Tiny ImageNet returned by the get_tiny_imagenet_info function.
-        transform
+        resize_transform
             A torchvision transform that will be applied to every image.
+        aug_transform
+            A torchvision transform that will be applied to every image right after reading (uint8 format).
         cache_images
             Whether to cache the resized images after loading them for the first time or to reload them every time.
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
 
-        self.transform = transform if transform else TINY_IMAGENET_TRANSFORM
+        self.resize_transform = resize_transform if resize_transform else TINY_IMAGENET_TRANSFORM
+        self.aug_transform = aug_transform if aug_transform else IMAGENET_AUG_TRANSFORM
         self.cache_images = cache_images
         self.image_cache = {}
 
@@ -508,12 +513,14 @@ class DownstreamDataset(Dataset):
         # check whether caching is activated
         if self.cache_images:
             # load from cache and convert to float
-            image = self.image_cache[idx] / 255
+            image = self.image_cache[idx]
+            image = self.aug_transform(image) / 255
         else:
             # load image from path
             image_path = self.image_paths[idx]
-            image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB) / 255
+            image = torchvision.io.read_image(image_path, mode=ImageReadMode.RGB)
+            image = self.aug_transform(image) / 255
         # resize image
-        image = self.transform(image)
+        image = self.resize_transform(image)
 
         return image

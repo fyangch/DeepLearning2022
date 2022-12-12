@@ -5,6 +5,8 @@ import torchvision.transforms.functional as F
 
 from typing import Callable
 
+from torchvision.transforms.autoaugment import AutoAugment
+
 
 class RandomColorDropping(torch.nn.Module):
     """
@@ -218,6 +220,8 @@ TINY_IMAGENET_TRANSFORM = Compose([
     Resize(224),
     Normalize(**IMAGENET_NORMALIZATION_PARAMS),
 ])
+
+IMAGENET_AUG_TRANSFORM = AutoAugment()
 
 # random augmentations from ReLIC paper
 RELIC_AUG_TRANSFORM = Compose([
