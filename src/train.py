@@ -282,10 +282,8 @@ def run_pretext(
         model = OurPretextNetwork(backbone="resnet18")
         criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
     elif pretext_type.lower() == "ourv2": # A1(center), A1(neighbor), A2(center), A2(neighbor)
-        ds_train = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
-                                               cache_images=cache_images)
-        ds_val = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
-                                             cache_images=cache_images)
+        ds_train = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
+        ds_val = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OurPretextNetworkv2(backbone="resnet18")
         criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
     elif pretext_type.lower() == "ourv3": # A1(center), A2(neighbor), A3(neighbor)
