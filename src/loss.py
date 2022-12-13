@@ -45,9 +45,9 @@ class CustomLoss(nn.Module):
         log_prob2 = F.log_softmax(output2, dim=1)
 
         # KL divergences
-        kl = F.kl_div(log_prob1, log_prob2, log_target=True)
+        kl = F.kl_div(log_prob1, log_prob2, log_target=True, reduction="batchmean")
         if self.symmetric:
-            kl += F.kl_div(log_prob2, log_prob1, log_target=True)
+            kl += F.kl_div(log_prob2, log_prob1, log_target=True, reduction="batchmean")
         loss += self.alpha * kl
 
         return loss
