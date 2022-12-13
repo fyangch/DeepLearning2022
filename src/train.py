@@ -367,7 +367,8 @@ def run_downstream(
     # initialize datasets
     ds_train = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[:n_train], use_aug_transform=use_aug_transform,
                                  cache_images=cache_images)
-    ds_val = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[n_train:], use_aug_transform=use_aug_transform,
+    # never use augmentations on the validation dataset
+    ds_val = DownstreamDataset(tiny_imagenet_info=tiny_imagenet_info[n_train:], use_aug_transform=False,
                                cache_images=cache_images)
 
     # initialize model
