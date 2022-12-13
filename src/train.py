@@ -279,16 +279,15 @@ def run_pretext(
         ds_val = OurPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
                                              cache_images=cache_images)
         model = OurPretextNetwork(backbone="resnet18")
+        criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
     else:
         ds_train = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
         ds_val = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OriginalPretextNetwork(backbone="resnet18")
+        criterion = nn.CrossEntropyLoss()
 
     logger.info("Number of training images: \t {}".format(len(ds_train)))
     logger.info("Number of validation images: \t {}".format(len(ds_val)))
-
-    # initialize loss
-    criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
 
     # initialize optimizer
     if optimizer_kwargs is None:
