@@ -27,7 +27,7 @@ RUN_DOWNSTREAM_PARAMS = {
 # maximal number of trials to perform
 N_TRIALS = 1e9
 # stops search if last trial ended more than TIMEOUT seconds after the start
-TIMEOUT = 259200
+TIMEOUT = 1e9
 
 # create objective function
 objective = create_optuna_objective(RUN_DOWNSTREAM_PARAMS)
