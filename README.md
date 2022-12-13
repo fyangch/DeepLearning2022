@@ -41,13 +41,13 @@ To reproduce the final results from our report, please first follow the setup in
 
 ## Codebase Overview: 
 ### Notebooks:
-* `PretextTaskTraining.ipynb`: This notebook is responsible for training our self-supervised models using the original patch-localization method as well as our own method.
 * `StyleAugmentations.ipynb`: This experimental notebook visualizes the various transformations and augmentations we apply to the ImageNet images.
+* `EmbeddingAnalysis.ipynb`: This notebook is analyses, compares and visualizes the embedding spaces of the original method and our method.
 
 ### Source Files:
-* `src/dataset.py`: Our custom dataset classes.
+* `src/dataset.py`: Our custom dataset classes for the pretext and downstream tasks.
 * `src/loss.py`: Custom loss function for our proposed pretext tasks.
-* `src/models.py`: Our models with support for different backbones.
+* `src/models.py`: Our pretext and downstream models with support for different backbones.
 * `src/train.py`: Training loop for both pretext and downstream tasks.
 * `src/transforms.py`: Image transformations and augmentations.
-* `src/utils.py`: Logging, model saving, checkpointing, etc.
+* `src/utils.py`: Logging, model saving, checkpointing, plotting, etc.
