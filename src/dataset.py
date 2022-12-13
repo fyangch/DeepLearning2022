@@ -394,7 +394,7 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
 class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
     """
     Dataset implementing our modified Patch Localization method
-    A sample is made up of the 8 possible tasks for a given grid ((center, A1(neighbor), A2(neighbor)), labels)
+    A sample is made up of the 8 possible tasks for a given grid (A1(center), A1(neighbor), A2(center), A2(neighbor)), labels)
     """
 
     def __init__(
