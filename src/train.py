@@ -20,22 +20,22 @@ from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_che
 
 
 def train_model(
-    experiment_id: str,
-    model: nn.Module,
-    ds_train: Dataset,
-    ds_val: Dataset,
-    device: str,
-    criterion: nn.Module,
-    optimizer: Optional[Optimizer]=None,
-    num_epochs: int=100,
-    batch_size: int=64,
-    num_workers: int=4,
-    resume_from_checkpoint: bool=False,
-    log_frequency: int=10,
-    fix_seed: bool=True, # training will not be reproducible if you resume from a checkpoint!
-    seed: int=42,
-    logger: logging.Logger = None,
-    ) -> float:
+        experiment_id: str,
+        model: nn.Module,
+        ds_train: Dataset,
+        ds_val: Dataset,
+        device: str,
+        criterion: nn.Module,
+        optimizer: Optional[Optimizer] = None,
+        num_epochs: int = 100,
+        batch_size: int = 64,
+        num_workers: int = 4,
+        resume_from_checkpoint: bool = False,
+        log_frequency: int = 10,
+        fix_seed: bool = True,  # training will not be reproducible if you resume from a checkpoint!
+        seed: int = 42,
+        logger: logging.Logger = None,
+) -> float:
     """ Training loop. """
     if fix_seed:
         fix_all_seeds(seed=seed)
@@ -78,7 +78,7 @@ def train_model(
 
         # update checkpoint
         logger.info(f"Saving checkpoint to ./out/{experiment_id}/checkpoint.pth.tar")
-        save_checkpoint(experiment_id, epoch+1, best_acc, model, optimizer)
+        save_checkpoint(experiment_id, epoch + 1, best_acc, model, optimizer)
 
     # save final model
     logger.info(f"Saving final model to ./out/{experiment_id}/final_model.pth.tar")
@@ -86,19 +86,19 @@ def train_model(
 
     # return best accuracy (for optuna)
     return best_acc
-    
+
 
 def train(
-    experiment_id: str,
-    model: nn.Module,
-    train_loader: DataLoader,
-    device: str,
-    criterion: nn.Module,
-    optimizer: Optimizer,
-    epoch: int,
-    logger: logging.Logger,
-    log_frequency: int,
-    ) -> None:
+        experiment_id: str,
+        model: nn.Module,
+        train_loader: DataLoader,
+        device: str,
+        criterion: nn.Module,
+        optimizer: Optimizer,
+        epoch: int,
+        logger: logging.Logger,
+        log_frequency: int,
+) -> None:
     """ Train the model for one epoch. """
 
     # keep track of batch processing time, data loading time and losses
@@ -111,22 +111,23 @@ def train(
     for i, (input, target) in enumerate(train_loader):
         curr_time = time.time()
 
-        target = target.long().to(device) # cross entropy loss function expects long type
+        target = target.long().to(device)  # cross entropy loss function expects long type
 
-        if isinstance(input, list): # pretext tasks
-            if len(input) == 2: # original pretext task
+        if isinstance(input, list):  # pretext tasks
+            if len(input) == 2:  # original pretext task
                 center, neighbor = input
-                output = model(center.to(device), neighbor.to(device)) 
+                output = model(center.to(device), neighbor.to(device))
                 loss = criterion(output, target)
-            elif len(input) == 3: # our pretext task with 3 patches
+            elif len(input) == 3:  # our pretext task with 3 patches
                 center, neighbor1, neighbor2 = input
                 output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
                 loss = criterion(output1, output2, target)
-            else: # our pretext task with 4 patches
+            else:  # our pretext task with 4 patches
                 center1, neighbor1, center2, neighbor2 = input
-                output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2.to(device))
+                output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device),
+                                         neighbor2.to(device))
                 loss = criterion(output1, output2, target)
-        else: # downstream task
+        else:  # downstream task
             output = model(input.to(device))
             loss = criterion(output, target)
 
@@ -140,13 +141,13 @@ def train(
         batch_time.update(time.time() - curr_time)
 
         # log after every `log_frequency` batches
-        if i % log_frequency == 0 or i == len(train_loader)-1:
+        if i % log_frequency == 0 or i == len(train_loader) - 1:
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
                   'Loss {loss.val:.5f} ({loss.avg:.5f})'.format(
-                      epoch, i, len(train_loader)-1, batch_time=batch_time,
-                      speed=target.size(0)/batch_time.val, loss=losses)
+                epoch, i, len(train_loader) - 1, batch_time=batch_time,
+                speed=target.size(0) / batch_time.val, loss=losses)
             logger.info(msg)
 
     # save plotting data for later use
@@ -154,15 +155,15 @@ def train(
 
 
 def validate(
-    experiment_id: str,
-    model: nn.Module,
-    val_loader: DataLoader,
-    device: str,
-    criterion: nn.Module,
-    epoch: int,
-    logger: logging.Logger,
-    log_frequency: int,
-    ) -> float:
+        experiment_id: str,
+        model: nn.Module,
+        val_loader: DataLoader,
+        device: str,
+        criterion: nn.Module,
+        epoch: int,
+        logger: logging.Logger,
+        log_frequency: int,
+) -> float:
     """ Validate the model using the validation set and return the accuracy. """
 
     # keep track of batch processing time and losses
@@ -173,45 +174,46 @@ def validate(
     model.eval()
 
     # for the computation of accuracy at the end
-    all_preds = [] # all predicted class labels
-    all_labels = [] # all true class labels
+    all_preds = []  # all predicted class labels
+    all_labels = []  # all true class labels
 
     with torch.no_grad():
         for i, (input, target) in enumerate(val_loader):
             curr_time = time.time()
 
-            target = target.long().to(device) # cross entropy loss function expects long type
+            target = target.long().to(device)  # cross entropy loss function expects long type
 
-            if isinstance(input, list): # pretext tasks
-                if len(input) == 2: # original pretext task
+            if isinstance(input, list):  # pretext tasks
+                if len(input) == 2:  # original pretext task
                     center, neighbor = input
                     output = model(center.to(device), neighbor.to(device))
                     loss = criterion(output, target)
 
                     # update list of labels and predictions for computation of accuracy
-                    all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
+                    all_preds.append(torch.argmax(output, dim=1).cpu().numpy())  # class label = index of max logit
                     all_labels.append(target.detach().cpu().numpy())
-                else: # our pretext tasks
-                    if len(input) == 3: # our pretext task with 3 patches
+                else:  # our pretext tasks
+                    if len(input) == 3:  # our pretext task with 3 patches
                         center, neighbor1, neighbor2 = input
                         output1, output2 = model(center.to(device), neighbor1.to(device), neighbor2.to(device))
                         loss = criterion(output1, output2, target)
-                    else: # our pretext task with 4 patches
+                    else:  # our pretext task with 4 patches
                         center1, neighbor1, center2, neighbor2 = input
-                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2.to(device))
+                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device),
+                                                 neighbor2.to(device))
                         loss = criterion(output1, output2, target)
 
                     # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
-                    all_preds.append(torch.argmax(output1, dim=1).cpu().numpy()) # class label = index of max logit
+                    all_preds.append(torch.argmax(output1, dim=1).cpu().numpy())  # class label = index of max logit
                     all_preds.append(torch.argmax(output2, dim=1).cpu().numpy())
                     all_labels.append(target.detach().cpu().numpy())
                     all_labels.append(target.detach().cpu().numpy())
-            else: # downstream task
+            else:  # downstream task
                 output = model(input.to(device))
                 loss = criterion(output, target)
 
                 # update list of labels and predictions for computation of accuracy
-                all_preds.append(torch.argmax(output, dim=1).cpu().numpy()) # class label = index of max logit
+                all_preds.append(torch.argmax(output, dim=1).cpu().numpy())  # class label = index of max logit
                 all_labels.append(target.detach().cpu().numpy())
 
             # record loss and batch processing time
@@ -219,12 +221,12 @@ def validate(
             batch_time.update(time.time() - curr_time)
 
             # log after every `log_frequency` batches
-            if i % log_frequency == 0 or i == len(val_loader)-1:
+            if i % log_frequency == 0 or i == len(val_loader) - 1:
                 msg = 'Test: [{0}/{1}]\t' \
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
                       'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(
-                          i, len(val_loader)-1, batch_time=batch_time,
-                          loss=losses)
+                    i, len(val_loader) - 1, batch_time=batch_time,
+                    loss=losses)
                 logger.info(msg)
 
         # Calculate accuracy for entire validation set
@@ -257,7 +259,6 @@ def run_pretext(
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
 ) -> float:
-
     # initialize logger
     logger = create_logger(experiment_id)
 
@@ -274,26 +275,26 @@ def run_pretext(
     imagenet_info = imagenet_info if imagenet_info is not None else get_imagenet_info()
 
     # initialize datasets and model
-    if pretext_type.lower() == "our": # center, A1(neighbor), A2(neighbor)
+    if pretext_type.lower() == "our":  # center, A1(neighbor), A2(neighbor)
         ds_train = OurPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
                                                cache_images=cache_images)
         ds_val = OurPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
                                              cache_images=cache_images)
         model = OurPretextNetwork(backbone="resnet18")
         criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
-    elif pretext_type.lower() == "ourv2": # A1(center), A1(neighbor), A2(center), A2(neighbor)
+    elif pretext_type.lower() == "ourv2":  # A1(center), A1(neighbor), A2(center), A2(neighbor)
         ds_train = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
         ds_val = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OurPretextNetworkv2(backbone="resnet18")
         criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
-    elif pretext_type.lower() == "ourv3": # A1(center), A2(neighbor), A3(neighbor)
+    elif pretext_type.lower() == "ourv3":  # A1(center), A2(neighbor), A3(neighbor)
         ds_train = OurPatchLocalizationDatasetv3(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
-                                               cache_images=cache_images)
+                                                 cache_images=cache_images)
         ds_val = OurPatchLocalizationDatasetv3(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
-                                             cache_images=cache_images)
-        model = OurPretextNetwork(backbone="resnet18") # for v3 we can use the same pretext model as for v1
+                                               cache_images=cache_images)
+        model = OurPretextNetwork(backbone="resnet18")  # for v3 we can use the same pretext model as for v1
         criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
-    else: # original method
+    else:  # original method
         ds_train = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
         ds_val = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OriginalPretextNetwork(backbone="resnet18")
@@ -341,7 +342,6 @@ def run_downstream(
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
 ) -> float:
-
     # initialize logger
     logger = create_logger(experiment_id)
 
@@ -400,6 +400,7 @@ def run_downstream(
 # adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 class AverageMeter(object):
     """ Computes and stores the average and current value. """
+
     def __init__(self):
         self.reset()
 
