@@ -451,6 +451,63 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
                 aug_transform2(neighbor_patch)]
 
 
+class OurPatchLocalizationDatasetv3(OriginalPatchLocalizationDataset):
+    """
+    Dataset implementing our modified Patch Localization method
+    A sample is made up of the 8 possible tasks for a given grid (A1(center), A2(neighbor), A3(neighbor)), labels)
+    """
+
+    def __init__(
+            self,
+            imagenet_info: List[str],
+            pre_transform: nn.Module = None,
+            aug_transform: nn.Module = None,
+            post_transform: nn.Module = None,
+            cache_images: bool = False,
+    ):
+        """
+        Parameters
+        ----------
+        imagenet_info
+            A list of image paths returned by the sample_image_paths function.
+        pre_transform
+            A torchvision transform that is applied to every raw image BEFORE the augmentation.
+        aug_transform
+            Random style augmentation transform that is separately applied twice to the outer patch.
+        post_transform
+            A torchvision transform that is applied to every augmented image AFTER the augmentation.
+        cache_images
+            Whether to cache the resized images after loading them for the first time or to reload them every time.
+            Aims to reduce latency of reloading images at cost of more memory usage.
+        """
+        super(OurPatchLocalizationDataset, self).__init__(
+            imagenet_info=imagenet_info if imagenet_info is not None else get_imagenet_info(),
+            pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
+            post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
+            cache_images=cache_images,
+        )
+
+        self.aug_transform = aug_transform if aug_transform else RELIC_AUG_TRANSFORM
+
+    def convert_patches(self, center_patch: torch.Tensor, neighbor_patch: torch.Tensor) -> List[torch.Tensor]:
+        """
+        Parameters
+        ----------
+        center_patch
+            A center patch in torch.Tensor format.
+        neighbor_patch
+            A neighbor patch in torch.Tensor format.
+
+        Returns
+        -------
+        List[torch.Tensor]
+            features: List with the 3 patches (A1(center), A2(neighbor), A3(neighbor)) with shape [3, 224, 224]
+        """
+
+        return [self.aug_transform(center_patch), self.aug_transform(neighbor_patch), self.aug_transform(neighbor_patch)]
+
+
+
 class DownstreamDataset(Dataset):
     """
     Dataset for the downstream image recognition task.
