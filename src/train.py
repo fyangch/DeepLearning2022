@@ -198,7 +198,7 @@ def validate(
                         loss = criterion(output1, output2, target)
                     else: # our pretext task with 4 patches
                         center1, neighbor1, center2, neighbor2 = input
-                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2.to(device))
                         loss = criterion(output1, output2, target)
 
                     # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
