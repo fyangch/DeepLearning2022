@@ -480,7 +480,7 @@ class OurPatchLocalizationDatasetv3(OriginalPatchLocalizationDataset):
             Whether to cache the resized images after loading them for the first time or to reload them every time.
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
-        super(OurPatchLocalizationDataset, self).__init__(
+        super(OurPatchLocalizationDatasetv3, self).__init__(
             imagenet_info=imagenet_info if imagenet_info is not None else get_imagenet_info(),
             pre_transform=pre_transform if pre_transform else IMAGENET_RESIZE,
             post_transform=post_transform if post_transform else PATCH_LOCALIZATION_POST,
