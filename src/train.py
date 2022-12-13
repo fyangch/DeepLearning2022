@@ -10,11 +10,12 @@ import time
 import logging
 
 from typing import Optional, Dict
+from typing_extensions import Literal
 
-from src.dataset import OurPatchLocalizationDataset, OriginalPatchLocalizationDataset, \
-    get_imagenet_info, DownstreamDataset, get_tiny_imagenet_info
+from src.dataset import OurPatchLocalizationDataset, OurPatchLocalizationDatasetv2, OurPatchLocalizationDatasetv3, \
+    OriginalPatchLocalizationDataset, get_imagenet_info, DownstreamDataset, get_tiny_imagenet_info
 from src.loss import CustomLoss
-from src.models import OurPretextNetwork, OriginalPretextNetwork, DownstreamNetwork
+from src.models import OurPretextNetwork, OurPretextNetworkv2, OriginalPretextNetwork, DownstreamNetwork
 from src.utils import fix_all_seeds, create_logger, save_plotting_data, save_checkpoint, load_checkpoint, save_model
 
 
@@ -123,7 +124,7 @@ def train(
                 loss = criterion(output1, output2, target)
             else: # our pretext task with 4 patches
                 center1, neighbor1, center2, neighbor2 = input
-                output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2.to(device))
                 loss = criterion(output1, output2, target)
         else: # downstream task
             output = model(input.to(device))
@@ -197,7 +198,7 @@ def validate(
                         loss = criterion(output1, output2, target)
                     else: # our pretext task with 4 patches
                         center1, neighbor1, center2, neighbor2 = input
-                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2).to(device)
+                        output1, output2 = model(center1.to(device), neighbor1.to(device), center2.to(device), neighbor2.to(device))
                         loss = criterion(output1, output2, target)
 
                     # update list of labels and predictions for computation of accuracy (our tasks contain 2 classifiaction tasks!)
@@ -243,7 +244,7 @@ def validate(
 def run_pretext(
         experiment_id: str,
         aug_transform: nn.Module,
-        pretext_type: str = "our",
+        pretext_type: Literal["our", "ourv2", "ourv3", "original"] = "our",
         loss_alpha: float = 1,
         loss_symmetric: bool = True,
         imagenet_info: pd.DataFrame = None,
@@ -273,22 +274,33 @@ def run_pretext(
     imagenet_info = imagenet_info if imagenet_info is not None else get_imagenet_info()
 
     # initialize datasets and model
-    if pretext_type.lower() == "our":
+    if pretext_type.lower() == "our": # center, A1(neighbor), A2(neighbor)
         ds_train = OurPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
                                                cache_images=cache_images)
         ds_val = OurPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
                                              cache_images=cache_images)
         model = OurPretextNetwork(backbone="resnet18")
-    else:
+        criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
+    elif pretext_type.lower() == "ourv2": # A1(center), A1(neighbor), A2(center), A2(neighbor)
+        ds_train = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
+        ds_val = OurPatchLocalizationDatasetv2(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
+        model = OurPretextNetworkv2(backbone="resnet18")
+        criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
+    elif pretext_type.lower() == "ourv3": # A1(center), A2(neighbor), A3(neighbor)
+        ds_train = OurPatchLocalizationDatasetv3(imagenet_info=imagenet_info[:n_train], aug_transform=aug_transform,
+                                               cache_images=cache_images)
+        ds_val = OurPatchLocalizationDatasetv3(imagenet_info=imagenet_info[n_train:], aug_transform=aug_transform,
+                                             cache_images=cache_images)
+        model = OurPretextNetwork(backbone="resnet18") # for v3 we can use the same pretext model as for v1
+        criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
+    else: # original method
         ds_train = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[:n_train], cache_images=cache_images)
         ds_val = OriginalPatchLocalizationDataset(imagenet_info=imagenet_info[n_train:], cache_images=cache_images)
         model = OriginalPretextNetwork(backbone="resnet18")
+        criterion = nn.CrossEntropyLoss()
 
     logger.info("Number of training images: \t {}".format(len(ds_train)))
     logger.info("Number of validation images: \t {}".format(len(ds_val)))
-
-    # initialize loss
-    criterion = CustomLoss(alpha=loss_alpha, symmetric=loss_symmetric)
 
     # initialize optimizer
     if optimizer_kwargs is None:
