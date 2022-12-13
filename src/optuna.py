@@ -21,6 +21,7 @@ def get_param_val(kwarg, val, trial) -> Union[float, int]:
 
 def create_optuna_objective(
         run_params: dict,
+        save_models: bool = False,
 ) -> Callable:
     """
     Create the objective function used for the optuna hyperparameter search.
@@ -48,9 +49,9 @@ def create_optuna_objective(
 
         # run trial
         if "pretext_model" in current_run_params:
-            best_acc = run_downstream(**current_run_params)
+            best_acc = run_downstream(**current_run_params, save_models=save_models)
         else:
-            best_acc = run_pretext(**current_run_params)
+            best_acc = run_pretext(**current_run_params, save_models=save_models)
 
         # return the accuracy this parameter combination achieved
         return best_acc

@@ -36,7 +36,7 @@ N_TRIALS = 1e9
 TIMEOUT = 1e9
 
 # create objective function
-objective = create_optuna_objective(RUN_PRETEXT_PARAMS)
+objective = create_optuna_objective(RUN_PRETEXT_PARAMS, save_models=False)
 
 # create study
 study = optuna.create_study(direction="maximize")

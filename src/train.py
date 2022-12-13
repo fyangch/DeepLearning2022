@@ -35,6 +35,7 @@ def train_model(
         fix_seed: bool = True,  # training will not be reproducible if you resume from a checkpoint!
         seed: int = 42,
         logger: logging.Logger = None,
+        save_models: bool = True,
 ) -> float:
     """ Training loop. """
     if fix_seed:
@@ -73,16 +74,19 @@ def train_model(
         # save best model so far
         if acc > best_acc:
             best_acc = acc
-            logger.info(f"Saving best model to ./out/{experiment_id}/best_model.pth.tar")
-            save_model(model, experiment_id, "best_model.pth.tar")
+            if save_models:
+                logger.info(f"Saving best model to ./out/{experiment_id}/best_model.pth.tar")
+                save_model(model, experiment_id, "best_model.pth.tar")
 
-        # update checkpoint
-        logger.info(f"Saving checkpoint to ./out/{experiment_id}/checkpoint.pth.tar")
-        save_checkpoint(experiment_id, epoch + 1, best_acc, model, optimizer)
+        if save_models:
+            # update checkpoint
+            logger.info(f"Saving checkpoint to ./out/{experiment_id}/checkpoint.pth.tar")
+            save_checkpoint(experiment_id, epoch + 1, best_acc, model, optimizer)
 
-    # save final model
-    logger.info(f"Saving final model to ./out/{experiment_id}/final_model.pth.tar")
-    save_model(model, experiment_id, "final_model.pth.tar")
+    if save_models:
+        # save final model
+        logger.info(f"Saving final model to ./out/{experiment_id}/final_model.pth.tar")
+        save_model(model, experiment_id, "final_model.pth.tar")
 
     # return best accuracy (for optuna)
     return best_acc
@@ -258,6 +262,7 @@ def run_pretext(
         log_frequency: int = 100,
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
+        save_models: bool = True,
 ) -> float:
     # initialize logger
     logger = create_logger(experiment_id)
@@ -323,6 +328,7 @@ def run_pretext(
         log_frequency=log_frequency,
         resume_from_checkpoint=resume_from_checkpoint,
         logger=logger,
+        save_models=save_models,
     )
 
     return best_acc
@@ -341,6 +347,7 @@ def run_downstream(
         log_frequency: int = 100,
         cache_images: bool = True,
         resume_from_checkpoint: bool = False,
+        save_models: bool = True,
 ) -> float:
     # initialize logger
     logger = create_logger(experiment_id)
@@ -392,6 +399,7 @@ def run_downstream(
         log_frequency=log_frequency,
         resume_from_checkpoint=resume_from_checkpoint,
         logger=logger,
+        save_models=save_models,
     )
 
     return best_acc
