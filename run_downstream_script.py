@@ -1,9 +1,9 @@
 from src.train import run_downstream
 from src.utils import load_best_model
-from src.models import OurPretextNetwork, OriginalPretextNetwork
+from src.models import OriginalPretextNetwork, OurPretextNetwork, OurPretextNetworkv2
 
 # specify experiment id to load pretext model from
-PRETEXT_EXPERIMENT_ID = "dustin_lr_1e4"
+PRETEXT_EXPERIMENT_ID = "PRETEXT_EXPERIMENT_ID"
 
 # load pretext model
 pretext_model = load_best_model(PRETEXT_EXPERIMENT_ID, OurPretextNetwork(backbone="resnet18"))
@@ -14,7 +14,7 @@ optimizer_kwargs = {
 }
 
 run_downstream(
-    experiment_id="HERE_YOUR_EXPERIMENT_ID",
+    experiment_id="DOWNSTREAM_EXPERIMENT_ID",
     pretext_model=pretext_model,
     optimizer_kwargs=optimizer_kwargs,
     num_epochs=100,

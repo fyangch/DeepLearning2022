@@ -223,13 +223,13 @@ TINY_IMAGENET_TRANSFORM = Compose([
 
 IMAGENET_AUG_TRANSFORM = AutoAugment()
 
-# random augmentations from ReLIC paper
+# random augmentations from ReLIC paper (best parameter values)
 RELIC_AUG_TRANSFORM = Compose([
     RandomResizedCrop(size=224, scale=(0.32, 1.0), ratio=(0.75, 1.3333333333333333)),
     ColorJitter(brightness=0.8, contrast=0.8, saturation=0.8, hue=0.2),
     RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(1e-10, 0.2)),
-    RandomSolarize(0.7, p=0.2),
+    RandomSolarize(0.5, p=0.2),
 ])
 
 # randomly crop a patch from a grid field with a PATCH_SIZE//4 gap

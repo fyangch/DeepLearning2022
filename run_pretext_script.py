@@ -6,16 +6,16 @@ aug_transform = Compose([
     ColorJitter(brightness=0.8, contrast=0.8, saturation=0.8, hue=0.2),
     RandomGrayscale(p=0.05),
     GaussianBlur(kernel_size=23, sigma=(1e-10, 0.2)),
-    RandomSolarize(0.7, p=0.2),
+    RandomSolarize(0.5, p=0.2),
 ])
 
 optimizer_kwargs = {
-    "lr": 1e-4,
+    "lr": 5e-5,
     "weight_decay": 0,
 }
 
 run_pretext(
-    experiment_id="HERE_YOUR_EXPERIMENT_ID",
+    experiment_id="PRETEXT_EXPERIMENT_ID",
     aug_transform=aug_transform,
     optimizer_kwargs=optimizer_kwargs,
     loss_alpha=1,
