@@ -74,7 +74,7 @@ class AlexNetEncoder(nn.Module):
 
 
 class OriginalPretextNetwork(nn.Module):
-    def __init__(self, backbone: str="alexnet"):
+    def __init__(self, backbone: str="resnet18"):
         super(OriginalPretextNetwork, self).__init__()
         self.encoder, self.embedding_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
@@ -106,7 +106,7 @@ class OriginalPretextNetwork(nn.Module):
 
 # 3 patch version
 class OurPretextNetwork(OriginalPretextNetwork):
-    def __init__(self, backbone: str="alexnet"):
+    def __init__(self, backbone: str="resnet18"):
         super(OurPretextNetwork, self).__init__(backbone=backbone)
 
     def forward(self, 
@@ -131,7 +131,7 @@ class OurPretextNetwork(OriginalPretextNetwork):
 
 # 4 patch version
 class OurPretextNetworkv2(OriginalPretextNetwork):
-    def __init__(self, backbone: str="alexnet"):
+    def __init__(self, backbone: str="resnet18"):
         super(OurPretextNetworkv2, self).__init__(backbone=backbone)
 
     def forward(self, 
