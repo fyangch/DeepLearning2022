@@ -6,7 +6,6 @@ from src.train import run_downstream, run_pretext
 
 
 def get_param_val(kwarg, val, trial) -> Union[float, int]:
-
     # type has to contain either "int" or "float" and can optionally contain "log" for logarithmic sampling
     t, lo, hi = val
 
@@ -26,12 +25,10 @@ def create_optuna_objective(
     """
     Create the objective function used for the optuna hyperparameter search.
     """
-
     experiment_id = run_params["experiment_id"]
     current_run_params = deepcopy(run_params)
 
     def objective(trial):
-
         # fill current_run_params with sampled parameter values (bayesian optimization)
         for kwarg, val in run_params.items():
             if not (isinstance(val, tuple) or kwarg == "optimizer_kwargs"):
@@ -57,3 +54,4 @@ def create_optuna_objective(
         return best_acc
 
     return objective
+    

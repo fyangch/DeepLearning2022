@@ -2,20 +2,18 @@ import torch
 from torchvision.transforms import Compose, RandomResizedCrop, RandomGrayscale, RandomHorizontalFlip, GaussianBlur, \
     ColorJitter, RandomSolarize, CenterCrop, Resize, Normalize, RandomCrop
 import torchvision.transforms.functional as F
+from torchvision.transforms.autoaugment import AutoAugment
 
 from typing import Callable
-
-from torchvision.transforms.autoaugment import AutoAugment
 
 
 class RandomColorDropping(torch.nn.Module):
     """
-    Custom torchvision transform module
+    Custom torchvision transform module.
 
     Drop all except for one randomly chosen color channel from the image and replace the dropped channels
-    with gaussian noise with 0 mean and `noise_std_factor` * torch.std(img[`channel_kept`]) standard deviation
+    with Gaussian noise with 0 mean and `noise_std_factor` * torch.std(img[`channel_kept`]) standard deviation.
     """
-
     def __init__(self, noise_std_factor: float = 0.01, inplace: bool = False):
         """
         Parameters
@@ -26,7 +24,6 @@ class RandomColorDropping(torch.nn.Module):
         inplace
             Whether to apply the transform directly to the input image or to a copy of it.
         """
-
         super().__init__()
 
         self.noise_std_factor = noise_std_factor
@@ -44,7 +41,6 @@ class RandomColorDropping(torch.nn.Module):
         torch.Tensor
             Image with 2 randomly selected channels dropped.
         """
-
         assert img.shape[0] == 3, f"tensor inputs to RandomColorDropping must have 3 color channels, " \
                                   f"image passed has shape {img.shape}"
 
@@ -67,14 +63,13 @@ class RandomColorDropping(torch.nn.Module):
 
 class ColorProjection(torch.nn.Module):
     """
-    Custom torchvision transform module
+    Custom torchvision transform module.
 
     Project colors of an RGB image to avoid trivial solutions for the patch localization pretext task making use of the
     chromatic aberration in an image. Each pixel of the image is projected onto the green-magenta color axis as
     described on page 4 of the "Unsupervised Visual Representation Learning by Context Prediction" paper
     (https://arxiv.org/pdf/1505.05192.pdf).
     """
-
     def __init__(self):
         super().__init__()
         # define projection matrix
@@ -114,7 +109,6 @@ class RelicAugmentationCreator:
     Class that constructs random ReLIC transformation functions.
     Using such a constructed function, the same randomness can be applied to multiple patches.
     """
-
     def __init__(self,
                  min_crop_scale: float = 0.32,
                  brightness: float = 0.8,
@@ -146,7 +140,9 @@ class RelicAugmentationCreator:
         self.hue = ColorJitter._check_input(self, self.hue, "hue", center=0, bound=(-0.5, 0.5), clip_first_on_zero=False)
 
     def get_random_function(self) -> Callable[[torch.Tensor], torch.Tensor]:
-        """ Return a function that takes a tensor and returns an augmented tensor. """
+        """ 
+        Return a function that takes a tensor and returns an augmented tensor. 
+        """
 
         # fix the random color jittering parameters
         fn_idx, brightness_factor, contrast_factor, saturation_factor, hue_factor = ColorJitter.get_params(

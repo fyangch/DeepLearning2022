@@ -20,5 +20,5 @@ run_downstream(
     num_epochs=100,
     n_train=9000,
     resume_from_checkpoint=False,
-    cache_images=True,
+    cache_images=False,
 )

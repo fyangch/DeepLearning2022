@@ -1,5 +1,4 @@
 import os
-
 import numpy as np
 import pandas as pd
 
@@ -25,7 +24,7 @@ def get_imagenet_info(
         recompute: bool = False,
 ) -> pd.DataFrame:
     """
-    Helper function to get information (path, label, n_channels) about every image in the imagenet validation dataset.
+    Helper function to get information (path, label, valid format) about every image in the ImageNet validation dataset.
 
     Parameters
     ----------
@@ -36,7 +35,7 @@ def get_imagenet_info(
     savefile
         Path to where the imagenet_info pandas DataFrame should be loaded from and saved to.
     recompute
-        Boolean indicating whether the imagenet_info should be recomputed even if it already exists.
+        Indicates whether the imagenet_info should be recomputed even if it already exists.
 
     Returns
     -------
@@ -44,11 +43,11 @@ def get_imagenet_info(
         A pandas DataFrame containing the imagenet information.
     """
 
-    # check if imagenet_info already in data folder
+    # check if imagenet_info already exists
     if not recompute and os.path.isfile(savefile):
-        # load df
+        # load data frame
         df = pd.read_csv(savefile, index_col=0)
-        # Only consider valid RGB images
+        # only consider valid RGB images
         df = df[df['is_rgb'] == 1]
         return df
 
@@ -56,15 +55,15 @@ def get_imagenet_info(
     image_dir = os.path.join(data_dir, "ILSVRC2012_img_val")
     label_path = os.path.join(data_dir, "ILSVRC2012_devkit_t12", "data", "ILSVRC2012_validation_ground_truth.txt")
 
-    # Collect every class label for each image
+    # collect every class label for each image
     labels = pd.read_csv(label_path, header=None).values.flatten()
 
-    # Gather all image titles
+    # gather all image titles
     image_titles = os.listdir(image_dir)
     image_titles.sort()
     image_paths = [str(os.path.join(image_dir, image_title)) for image_title in image_titles]
 
-    # Gather filter out non-RGB images (grayscale and RGBA)
+    # filter out non-RGB images (grayscale and RGBA)
     is_rgb = []
     for image_path in image_paths:
         image = torchvision.io.read_image(image_path)
@@ -73,14 +72,14 @@ def get_imagenet_info(
         else:
             is_rgb.append(1)
 
-    # Create a Dataframe with the image titles, labels and validity of image format
+    # Create a data frame with image titles, labels and validity of image formats
     merge_dict = {'images': image_paths, 'labels': labels, 'is_rgb': is_rgb}
     df = pd.DataFrame(merge_dict)
 
-    # save imagenet info in data folder
+    # save ImageNet info in data folder
     df.to_csv(savefile)
 
-    # Only consider valid RGB images
+    # only consider valid RGB images
     df = df[df['is_rgb'] == 1]
 
     return df
@@ -92,28 +91,28 @@ def get_tiny_imagenet_info(
         recompute: bool = False,
 ) -> pd.DataFrame:
     """
-    Helper function to get information (path, label, n_channels) about every image in the tiny imagenet validation dataset.
+    Helper function to get information (path, label, valid format) about every image in the Tiny-ImageNet-200 validation dataset.
 
     Parameters
     ----------
     data_dir
-        Path to the 'data' directory. The 'data' directory should contain the following two directory:
-        - 'tiny-imagenet-200': Containing the Tiny ImageNet dataset (https://image-net.org/data/tiny-imagenet-200.zip)
+        Path to the 'data' directory. The 'data' directory should contain the following directory:
+        - 'tiny-imagenet-200': Containing the Tiny-ImageNet-200 dataset (https://image-net.org/data/tiny-imagenet-200.zip)
     savefile
         Path to where the tiny_imagenet_info pandas DataFrame should be loaded from and saved to.
     recompute
-        Boolean indicating whether the tiny_imagenet_info should be recomputed even if it already exists.
+        Indicates whether the tiny_imagenet_info should be recomputed even if it already exists.
 
     Returns
     -------
     pd.DataFrame
-        A pandas DataFrame containing the tiny imagenet information.
+        A pandas DataFrame containing the Tiny-ImageNet-200 information.
     """
 
     # check if imagenet_info already in data folder
     if not recompute and os.path.isfile(savefile):
         annotations_df = pd.read_csv(savefile, index_col=0)
-        # Only consider valid RGB images
+        # only consider valid RGB images
         annotations_df = annotations_df[annotations_df['is_rgb'] == 1]
         return annotations_df
 
@@ -127,7 +126,7 @@ def get_tiny_imagenet_info(
     str_to_int_class = {s: idx for idx, s in enumerate(classes)}
     annotations_df['labels'] = annotations_df['Class'].apply(lambda x: str_to_int_class[x])
 
-    # Gather all image titles
+    # gather all image titles
     image_paths = [str(os.path.join(image_dir, image_title)) for image_title in annotations_df['File']]
 
     # Gather filter out non-RGB images (grayscale and RGBA)
@@ -139,14 +138,14 @@ def get_tiny_imagenet_info(
         else:
             is_rgb.append(1)
 
-    # Create a Dataframe with the image titles, labels and validity of image format
+    # Create a DataFrame with the image titles, labels and validity of image format
     annotations_df['is_rgb'] = is_rgb
     annotations_df['images'] = image_paths
 
-    # save imagenet info in data folder
+    # save ImageNet info in data folder
     annotations_df.to_csv(savefile)
 
-    # Only consider valid RGB images
+    # only consider valid RGB images
     annotations_df = annotations_df[annotations_df['is_rgb'] == 1]
 
     return annotations_df
@@ -156,7 +155,7 @@ def sample_image_paths(
         frac: float = .1,
 ) -> np.ndarray:
     """
-    Helper function to sample the ILSVRC2012_image_val dataset in a stratified method.
+    Helper function to sample the ILSVRC2012_image_val dataset in a stratified way.
     Parameters
     ----------
     frac
@@ -164,14 +163,14 @@ def sample_image_paths(
     Returns
     -------
     np.ndarray
-        A numpy array of the sampled image paths.
+        A numpy array containing the sampled image paths.
     """
     df = get_imagenet_info()
 
-    # Only consider valid RGB images
+    # only consider valid RGB images
     df = df[df['is_rgb'] == 1]
 
-    # Return a stratified sample of the dataset
+    # return a stratified subset of the dataset
     return df.groupby('labels', group_keys=False).apply(lambda x: x.sample(frac=frac, replace=False))['images'].values
 
 
@@ -214,12 +213,12 @@ def extract_patches(image: torch.Tensor, label: int) -> Tuple[torch.Tensor, torc
     image
         torch.Tensor image with shape [3, 224, 224].
     label
-        The label whose corresponding patch should be cropped. Has to be an integer between 0 and 7 (inclusive)
+        The label whose corresponding patch should be cropped. Has to be an integer between 0 and 7 (inclusive).
 
     Returns
     -------
     Tuple[torch.Tensor, torch.Tensor]
-        A tuple of the center and the neighbor patch
+        A tuple of the center and the neighbor patch.
     """
     assert 0 <= label <= 7, f"label has to be between 0 and 7 (inclusive), provided label: {label}"
 
@@ -237,10 +236,9 @@ def extract_patches(image: torch.Tensor, label: int) -> Tuple[torch.Tensor, torc
 
 class OriginalPatchLocalizationDataset(Dataset):
     """
-    Dataset implementing the original Patch Localization method
-    A sample is made up of the 8 possible tasks for a given grid ((center, neighbor), labels)
+    Dataset implementing the original patch localization method
+    A sample is made up of the 8 possible tasks for a given grid ((center, neighbor), labels).
     """
-
     def __init__(
             self,
             imagenet_info: pd.DataFrame = None,
@@ -275,7 +273,6 @@ class OriginalPatchLocalizationDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx: int):
-
         # load image
         image = self.load_image(idx)
 
@@ -331,7 +328,6 @@ class OriginalPatchLocalizationDataset(Dataset):
         List[torch.Tensor]
             features: List with the 2 patches (center, neighbor) with shape [3, 224, 224]
         """
-
         return [center_patch, neighbor_patch]
 
 
@@ -340,7 +336,6 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
     Dataset implementing our modified Patch Localization method
     A sample is made up of the 8 possible tasks for a given grid ((center, A1(neighbor), A2(neighbor)), labels)
     """
-
     def __init__(
             self,
             imagenet_info: List[str],
@@ -387,7 +382,6 @@ class OurPatchLocalizationDataset(OriginalPatchLocalizationDataset):
         List[torch.Tensor]
             features: List with the 3 patches (center, A1(neighbor), A2(neighbor)) with shape [3, 224, 224]
         """
-
         return [center_patch, self.aug_transform(neighbor_patch), self.aug_transform(neighbor_patch)]
 
 
@@ -396,7 +390,6 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
     Dataset implementing our modified Patch Localization method
     A sample is made up of the 8 possible tasks for a given grid (A1(center), A1(neighbor), A2(center), A2(neighbor)), labels)
     """
-
     def __init__(
             self,
             imagenet_info: List[str],
@@ -443,9 +436,10 @@ class OurPatchLocalizationDatasetv2(OriginalPatchLocalizationDataset):
         List[torch.Tensor]
             features: List with the 3 patches (A1(center), A1(neighbor), A2(center), A2(neighbor)) with shape [3, 224, 224]
         """
-        # sample 2 random augmentations
+        # sample 2 random augmentation functions
         aug_transform1 = self.aug_transform_creator.get_random_function()
         aug_transform2 = self.aug_transform_creator.get_random_function()
+
         # augment the center and neighbor patch with both augmentations separately
         return [aug_transform1(center_patch), aug_transform1(neighbor_patch), aug_transform2(center_patch),
                 aug_transform2(neighbor_patch)]
@@ -456,7 +450,6 @@ class OurPatchLocalizationDatasetv3(OriginalPatchLocalizationDataset):
     Dataset implementing our modified Patch Localization method
     A sample is made up of the 8 possible tasks for a given grid (A1(center), A2(neighbor), A3(neighbor)), labels)
     """
-
     def __init__(
             self,
             imagenet_info: List[str],
@@ -503,9 +496,7 @@ class OurPatchLocalizationDatasetv3(OriginalPatchLocalizationDataset):
         List[torch.Tensor]
             features: List with the 3 patches (A1(center), A2(neighbor), A3(neighbor)) with shape [3, 224, 224]
         """
-
         return [self.aug_transform(center_patch), self.aug_transform(neighbor_patch), self.aug_transform(neighbor_patch)]
-
 
 
 class DownstreamDataset(Dataset):
@@ -533,7 +524,6 @@ class DownstreamDataset(Dataset):
             Whether to cache the resized images after loading them for the first time or to reload them every time.
             Aims to reduce latency of reloading images at cost of more memory usage.
         """
-
         self.resize_transform = resize_transform if resize_transform else TINY_IMAGENET_TRANSFORM
         self.aug_transform = IMAGENET_AUG_TRANSFORM
         self.use_aug_transform = use_aug_transform
@@ -552,11 +542,8 @@ class DownstreamDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx: int):
-
-        # load image
+        # load image and label
         image = self.load_image(idx)
-
-        # load label
         label = self.image_labels[idx]
 
         return image, label
@@ -586,3 +573,4 @@ class DownstreamDataset(Dataset):
         image = self.resize_transform(image)
 
         return image
+        
