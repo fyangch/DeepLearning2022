@@ -18,10 +18,10 @@ run_pretext(
     experiment_id="PRETEXT_EXPERIMENT_ID",
     aug_transform=aug_transform,
     optimizer_kwargs=optimizer_kwargs,
-    loss_alpha=1,
+    loss_alpha=5,
     loss_symmetric=True,
     pretext_type='our',
-    cache_images=True,
+    cache_images=False,
     num_epochs=100,
     resume_from_checkpoint=False,
 )
