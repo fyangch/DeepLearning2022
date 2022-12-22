@@ -6,9 +6,6 @@ This repository contains the code of our group project for the course *Deep Lear
 * Jonathan Manz
 * Felix Yang
 
-### Credits:
-We wrote most of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop and for the logging of the training progress.
-
 
 ## Setup:
 ### ImageNet Dataset:
@@ -34,7 +31,7 @@ We wrote most of the code ourselves from scratch. We thereby used [this reposito
 Follow these steps to train our final model and to reproduce our results from the downstream task:
 1. Follow the setup instructions above.
 2. Run `python run_pretext_script.py` to train our final pretext task model. All the best parameters are already set. Feel free to specify some pretext experiment ID (not necessary). Note: The training takes about 8.5 hours on the Euler cluster.
-2. Run `python run_downstream_script.py` to evaluate the trained pretext task model on the downstream task. If changed the pretext experiment ID above, you need to use the same pretext ID in this script!
+2. Run `python run_downstream_script.py` to evaluate the trained pretext task model on the downstream task. If you changed the pretext experiment ID in the previous step, you need to use the same pretext ID in this script!
 
 
 ## Codebase Overview:
@@ -57,3 +54,6 @@ Follow these steps to train our final model and to reproduce our results from th
 * `src/train.py`: Training loop for both pretext and downstream tasks.
 * `src/transforms.py`: Image transformations and augmentations.
 * `src/utils.py`: Logging, model saving, checkpointing, plotting, etc.
+
+### Credits:
+We wrote most of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop and for the logging of the training progress.
