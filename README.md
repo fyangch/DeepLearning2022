@@ -1,14 +1,10 @@
 # Enforcing Style Invariance in Patch Localization
+This repository contains the code of our group project for the course *Deep Learning (AS22 ETH Zürich)*.
 ### Team Members:
 * Elior Ben Arous
 * Dustin Brunner
 * Jonathan Manz
 * Felix Yang
-
-
-
-## Overview:
-This repository contains the code of our group project for the course *Deep Learning (AS22 ETH Zürich)*. The notebooks in the root directory are meant for demonstrations and experiments. We put most of the main functionalities into the `src` directory so that the notebooks are as clean, minimal and comprehensible as possible.
 
 ### Credits:
 We wrote most of the code ourselves from scratch. We thereby used [this repository by Microsoft](https://github.com/microsoft/human-pose-estimation.pytorch) as a guide for the structure of our training loop and for the logging of the training progress.
@@ -35,20 +31,29 @@ We wrote most of the code ourselves from scratch. We thereby used [this reposito
 
 
 ## Final Results:
-To reproduce the final results from our report, please first follow the setup instructions above. Then, TODO
+Follow these steps to train our final model and to reproduce our results from the downstream task:
+1. Follow the setup instructions above.
+2. Run `python run_pretext_script.py` to train our final pretext task model. All the best parameters are already set. Feel free to specify some pretext experiment ID (not necessary). Note: The training takes about 8.5 hours on the Euler cluster.
+2. Run `python run_downstream_script.py` to evaluate the trained pretext task model on the downstream task. If changed the pretext experiment ID above, you need to use the same pretext ID in this script!
 
 
+## Codebase Overview:
+### Scripts:
+* `run_pretext_script.py`: Script to run pretext task experiments.
+* `run_downstream_script.py`: Script to run downstream task experiments.
+* `optuna_pretext_script.py`: Script to find good hyperparameters for the pretext tasks using Optuna.
+* `optuna_downstream_script.py`: Script to find good hyperparameters for the downstream tasks using Optuna.
 
-
-## Codebase Overview: 
 ### Notebooks:
-* `StyleAugmentations.ipynb`: This experimental notebook visualizes the various transformations and augmentations we apply to the ImageNet images.
-* `EmbeddingAnalysis.ipynb`: This notebook is analyses, compares and visualizes the embedding spaces of the original method and our method.
+* `StyleAugmentations.ipynb`: Visualizes the various transformations and augmentations we apply to the ImageNet images.
+* `EmbeddingAnalysis.ipynb`: Analyses, compares and visualizes the embedding spaces of the original method and our method.
+* `HyperparameterOptimization.ipynb`: Explains how to optimize hyperparameters using Optuna.
 
 ### Source Files:
 * `src/dataset.py`: Our custom dataset classes for the pretext and downstream tasks.
 * `src/loss.py`: Custom loss function for our proposed pretext tasks.
 * `src/models.py`: Our pretext and downstream models with support for different backbones.
+* `src/optuna.py`: Functions to find good hyperparameters with Optuna.
 * `src/train.py`: Training loop for both pretext and downstream tasks.
 * `src/transforms.py`: Image transformations and augmentations.
 * `src/utils.py`: Logging, model saving, checkpointing, plotting, etc.
