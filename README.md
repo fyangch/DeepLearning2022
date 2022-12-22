@@ -43,7 +43,7 @@ Follow these steps to train our final model and to reproduce our results from th
 
 ### Notebooks:
 * `StyleAugmentations.ipynb`: Visualizes the various transformations and augmentations we apply to the ImageNet images.
-* `EmbeddingAnalysis.ipynb`: Analyses, compares and visualizes the embedding spaces of the original method and our method.
+* `EmbeddingVisualization.ipynb`: Analyses, compares and visualizes the embedding spaces of the original method and our method.
 * `HyperparameterOptimization.ipynb`: Explains how to optimize hyperparameters using Optuna.
 
 ### Source Files:
