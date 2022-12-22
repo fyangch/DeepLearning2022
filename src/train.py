@@ -37,8 +37,9 @@ def train_model(
         logger: logging.Logger = None,
         save_models: bool = True,
 ) -> float:
-    """ Training loop. """
-
+    """ 
+    Training loop. 
+    """
     if fix_seed:
         fix_all_seeds(seed=seed)
 
@@ -104,8 +105,9 @@ def train(
         logger: logging.Logger,
         log_frequency: int,
 ) -> None:
-    """ Train the model for one epoch. """
-
+    """ 
+    Train the model for one epoch. 
+    """
     # keep track of batch processing time, data loading time and losses
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -169,8 +171,9 @@ def validate(
         logger: logging.Logger,
         log_frequency: int,
 ) -> float:
-    """ Validate the model using the validation set and return the accuracy. """
-
+    """ 
+    Validate the model using the validation set and return the accuracy. 
+    """
     # keep track of batch processing time and losses
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -234,7 +237,7 @@ def validate(
                     loss=losses)
                 logger.info(msg)
 
-        # Calculate accuracy for entire validation set
+        # calculate accuracy for entire validation set
         all_preds = np.concatenate(all_preds, axis=0)
         all_labels = np.concatenate(all_labels, axis=0)
         accuracy = (all_preds == all_labels).sum() / all_preds.shape[0]
@@ -250,7 +253,7 @@ def validate(
 
 def run_pretext(
         experiment_id: str,
-        aug_transform: nn.Module,
+        aug_transform: nn.Module = None,
         pretext_type: Literal["our", "ourv2", "ourv3", "original"] = "our",
         loss_alpha: float = 5,
         loss_symmetric: bool = True,
@@ -265,6 +268,9 @@ def run_pretext(
         resume_from_checkpoint: bool = False,
         save_models: bool = True,
 ) -> float:
+    """
+    Run pretext task experiment.
+    """
     # initialize logger
     logger = create_logger(experiment_id)
 
@@ -273,7 +279,7 @@ def run_pretext(
     params_df = pd.DataFrame({"parameter": [p[0] for p in params], "value": [p[1] for p in params]})
     logger.info(params_df.to_markdown(index=False))
 
-    # use gpu if available
+    # use GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info("Device: {}".format(device))
 
@@ -350,6 +356,9 @@ def run_downstream(
         resume_from_checkpoint: bool = False,
         save_models: bool = True,
 ) -> float:
+    """
+    Run downstream task experiment.
+    """
     # initialize logger
     logger = create_logger(experiment_id)
 
@@ -407,12 +416,11 @@ def run_downstream(
     return best_acc
 
 
-# adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 class AverageMeter(object):
     """ 
-    Computes and stores the average and current value. 
+    Computes and stores the average and current value for some metric.
+    Adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
     """
-
     def __init__(self):
         self.reset()
 
