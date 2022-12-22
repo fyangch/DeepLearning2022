@@ -33,7 +33,7 @@ def get_encoder(backbone: str) -> Tuple[nn.Module, int]:
 
 class AlexNetEncoder(nn.Module):
     """
-    Follows the architecture outlined in the patch localization paper.
+    AlexNet-style encoder. Follows the architecture outlined in the patch localization paper.
     Code adopted from: 
         - https://github.com/abhisheksambyal/Self-supervised-learning-by-context-prediction
         - https://pytorch.org/vision/main/_modules/torchvision/models/alexnet.html
@@ -79,8 +79,6 @@ class OriginalPretextNetwork(nn.Module):
         self.encoder, self.embedding_dim = get_encoder(backbone)
         self.fc = nn.Sequential(
             nn.Linear(2*self.embedding_dim, 4096),
-            # nn.ReLU(inplace=True), 
-            # nn.Linear(4096, 4096),
             nn.ReLU(inplace=True), 
             nn.Linear(4096, 8)
         )
@@ -104,8 +102,10 @@ class OriginalPretextNetwork(nn.Module):
         return output
 
 
-# 3 patch version
 class OurPretextNetwork(OriginalPretextNetwork):
+    """
+    Network for our methods v1 and v3 that use 3 patches.
+    """
     def __init__(self, backbone: str="resnet18"):
         super(OurPretextNetwork, self).__init__(backbone=backbone)
 
@@ -129,8 +129,10 @@ class OurPretextNetwork(OriginalPretextNetwork):
         return output1, output2
 
 
-# 4 patch version
 class OurPretextNetworkv2(OriginalPretextNetwork):
+    """
+    Network for our method v2 that uses 4 patches.
+    """
     def __init__(self, backbone: str="resnet18"):
         super(OurPretextNetworkv2, self).__init__(backbone=backbone)
 
@@ -159,10 +161,11 @@ class OurPretextNetworkv2(OriginalPretextNetwork):
 class DownstreamNetwork(nn.Module):
     def __init__(self, pretext_model: OriginalPretextNetwork):
         """
-        Args:
-            pretext_model (OriginalPretextNetwork):
-                The trained self-supervised model that is or inherits from OriginalPretextNetwork.
-                Its encoder will be used by the downstream model with freezed layers.
+        Parameters
+        ----------
+        pretext_model
+            The trained self-supervised model that is or inherits from OriginalPretextNetwork.
+            Its encoder will be used by the downstream model with freezed layers.
         """
         super(DownstreamNetwork, self).__init__()
 
@@ -182,3 +185,4 @@ class DownstreamNetwork(nn.Module):
         x = self.pretext_model.get_embedding(x)
         x = self.head(x)
         return x
+        

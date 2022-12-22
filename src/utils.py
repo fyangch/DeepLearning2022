@@ -16,7 +16,9 @@ from torchvision.transforms import Normalize
 
 
 def fix_all_seeds(seed: int) -> None:
-    """ Fix all the different seeds for reproducibility. """
+    """ 
+    Fix all the different seeds for reproducibility. 
+    """
     random.seed(seed)
     np.random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -26,6 +28,9 @@ def fix_all_seeds(seed: int) -> None:
 
     
 def create_logger(experiment_id: str) -> logging.Logger:
+    """ 
+    Set up a logger for the current experiment.
+    """
     # set up directory for the current experiment
     experiment_dir = os.path.join("out", experiment_id)
     log_dir = os.path.join(experiment_dir, "logs")
@@ -50,7 +55,9 @@ def create_logger(experiment_id: str) -> logging.Logger:
 
 
 def save_plotting_data(experiment_id: str, metric: str, epoch: int, metric_val: float):
-    """ Save metrics after each epoch in a CSV file (to create plots for our report later). """
+    """ 
+    Save metrics after each epoch in a CSV file (to create plots for our report later). 
+    """
     fn = os.path.join("out", experiment_id, f"{metric}.csv")
 
     # define header if file does not exist yet
@@ -65,7 +72,6 @@ def save_plotting_data(experiment_id: str, metric: str, epoch: int, metric_val: 
         writer.writerow([epoch, metric_val])
 
 
-# More details: https://pytorch.org/tutorials/recipes/recipes/saving_and_loading_a_general_checkpoint.html 
 def save_checkpoint(
     experiment_id: str, 
     next_epoch: int,
@@ -74,7 +80,10 @@ def save_checkpoint(
     optimizer: Optimizer,
     filename: str="checkpoint.pth.tar"
     ):
-
+    """
+    Save all the necessary data to resume the training at a later point in time.
+    More details: https://pytorch.org/tutorials/recipes/recipes/saving_and_loading_a_general_checkpoint.html 
+    """
     # checkpoint states
     d = {
         "next_epoch": next_epoch,
@@ -88,7 +97,9 @@ def save_checkpoint(
 
 
 def load_checkpoint(experiment_id: str, model: nn.Module, optimizer: Optimizer) -> Tuple[nn.Module, Optimizer, int, float]:
-    """ Load the latest checkpoint and return the updated model and optimizer, the next epoch and best accuracy so far. """
+    """ 
+    Load the latest checkpoint and return the updated model and optimizer, the next epoch and best accuracy so far. 
+    """
     # load checkpoint
     filename = os.path.join("out", experiment_id, "checkpoint.pth.tar")
     checkpoint = torch.load(filename)
@@ -104,16 +115,21 @@ def load_checkpoint(experiment_id: str, model: nn.Module, optimizer: Optimizer) 
 
 
 def load_best_model(experiment_id: str, model: nn.Module) -> nn.Module:
-    """Load the model weights that resulted in the highest validation accuracy in a previous experiment."""
+    """
+    Load the model weights that resulted in the highest validation accuracy in a previous experiment.
+    """
     # load best model
     filename = os.path.join("out", experiment_id, "best_model.pth.tar")
     model_state_dict = torch.load(filename, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-    # model_state_dict = {"state_dict": model_state_dict}
     model.load_state_dict(model_state_dict)
+
     return model
 
 
 def save_model(model: nn.Module, experiment_id: str, filename: str):
+    """
+    Save the current model from the current experiment.
+    """
     experiment_dir = os.path.join("out", experiment_id)
     torch.save(model.state_dict(), os.path.join(experiment_dir, filename))
 
@@ -124,8 +140,9 @@ def display_image(
         plt_title: str = None,
         nrow: int = 8,
 ):
-    """ Display a single or multiple torch tensor images """
-
+    """ 
+    Display a single or multiple torch.Tensor images.
+    """
     if not (isinstance(image, torch.Tensor) and len(image.shape) == 3):
         # place images into grid
         image = torchvision.utils.make_grid(image, nrow=nrow)
@@ -139,12 +156,15 @@ def display_image(
     img_np = image.numpy()
     # shuffle the color channels correctly
     plt.imshow(np.transpose(img_np, (1, 2, 0)))
+
     # plot
     plt.title(plt_title)
     plt.show()
 
 
 def display_dataset_sample(ds_sample: Tuple[torch.Tensor, torch.Tensor], normalization_params=None):
+    """
+    Display a single or multiple torch.Tensor images with the corresponding labels.
+    """
     features, labels = ds_sample
-
     display_image(list(features), normalization_params=normalization_params, plt_title=f"label: {labels.item() if isinstance(labels, torch.Tensor) else labels}")

@@ -1,13 +1,13 @@
 import pandas as pd
+import numpy as np
+import time
+import logging
+
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Optimizer
-
-import numpy as np
-import time
-import logging
 
 from typing import Optional, Dict
 from typing_extensions import Literal
@@ -38,6 +38,7 @@ def train_model(
         save_models: bool = True,
 ) -> float:
     """ Training loop. """
+
     if fix_seed:
         fix_all_seeds(seed=seed)
 
@@ -408,7 +409,9 @@ def run_downstream(
 
 # adopted from: https://github.com/microsoft/human-pose-estimation.pytorch/blob/master/lib/core/function.py
 class AverageMeter(object):
-    """ Computes and stores the average and current value. """
+    """ 
+    Computes and stores the average and current value. 
+    """
 
     def __init__(self):
         self.reset()
