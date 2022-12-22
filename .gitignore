@@ -131,7 +131,7 @@ dmypy.json
 # MODIFICATIONS
 
 data/*
-!data/imagenet_validation_RGB_10perc_subset.csv
+!data/tiny_imagenet_info.csv
 !data/imagenet_info.csv
 out/
 
