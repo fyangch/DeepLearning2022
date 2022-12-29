@@ -1,5 +1,12 @@
 # Enforcing Style Invariance in Patch Localization
 This repository contains the code of our group project for the course *Deep Learning (AS22 ETH Zürich)*.
+
+### Short Description:
+We use the causal framework from *ReLIC* [(Mitrovic et al., 2020)](https://arxiv.org/abs/2010.07922) to modify the patch localization pretext task [(Doersch et al., 2015)](https://arxiv.org/abs/1505.05192).
+
+![](/imgs/description.png "Description")
+
+
 ### Team Members:
 * Elior Ben Arous
 * Dustin Brunner
